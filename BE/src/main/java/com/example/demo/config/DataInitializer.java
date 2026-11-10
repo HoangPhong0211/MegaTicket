@@ -8,9 +8,9 @@ import com.example.demo.repository.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
-
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
@@ -26,6 +26,7 @@ public class DataInitializer implements CommandLineRunner {
     private final SeatZoneRepository seatZoneRepository;
     private final TicketRepository ticketRepository;
     private final MerchandiseRepository merchandiseRepository;
+    private final PasswordEncoder passwordEncoder; // Inject để hash mật khẩu admin đúng cách
 
     @Override
     @Transactional
@@ -37,10 +38,10 @@ public class DataInitializer implements CommandLineRunner {
 
         log.info("Bắt đầu khởi tạo dữ liệu mẫu cho MegaTicket...");
 
-        // 1. Tạo User mẫu
+        // 1. Tạo User mẫu - hash mật khẩu "admin123" bằng BCrypt
         User admin = User.builder()
                 .email("admin@megaticket.vn")
-                .passwordHash("$2a$10$sampleHashedPasswordForDemoOnly")
+                .passwordHash(passwordEncoder.encode("admin123")) // BCrypt hash đúng chuẩn
                 .fullName("Quản trị viên MegaTicket")
                 .phone("0901234567")
                 .role(Role.ADMIN)
