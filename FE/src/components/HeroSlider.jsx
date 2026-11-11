@@ -1,147 +1,171 @@
 /**
  * HeroSlider - Banner slideshow trang chủ
- * Hiển thị các sự kiện nổi bật với hiệu ứng chuyển tiếp mượt mà.
- * Tự động chuyển slide mỗi 5 giây.
+ * Ưu tiên hiển thị các sự kiện thực tế từ API; dùng fallback khi chưa có dữ liệu.
  */
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Link } from 'react-router-dom'
+import { MapPin, Calendar, ArrowRight, ChevronLeft, ChevronRight } from 'lucide-react'
+import { EVENT_STATUS_META, formatDateRange } from '../utils/format'
 
-// Dữ liệu mẫu cho slider (sẽ thay bằng API sau)
-const HERO_SLIDES = [
+const FALLBACK_SLIDES = [
   {
-    id: 1,
-    title: 'BLACKPINK WORLD TOUR 2026',
-    location: 'Sân vận động Mỹ Đình, Hà Nội',
-    date: '20 Tháng 12, 2026',
-    status: 'Đang mở bán',
-    // Dùng gradient thay cho ảnh thực tế
-    gradient: 'linear-gradient(135deg, #1a0a2e 0%, #2d1b69 40%, #11998e 100%)',
+    id: 'fallback-1',
+    title: 'MEGATICKET LIVE MUSIC CONCERT 2026',
+    location: 'Sân vận động Quốc gia Mỹ Đình, Hà Nội',
+    date: 'Đang mở bán vé chính thức',
+    status: 'Sắp diễn ra',
+    gradient: 'linear-gradient(135deg, #1a0a2e 0%, #2d1b69 45%, #e5133a 100%)',
     emoji: '🎤',
+    linkTo: '/events',
   },
   {
-    id: 2,
+    id: 'fallback-2',
     title: 'ĐÊM NHẠC TRỊNH CÔNG SƠN - MÙA THU HÀ NỘI',
     location: 'Nhà hát Lớn Hà Nội',
     date: '05 Tháng 1, 2027',
-    status: 'Sắp mở bán',
-    gradient: 'linear-gradient(135deg, #0f2027 0%, #203a43 40%, #2c5364 100%)',
+    status: 'Đang mở bán',
+    gradient: 'linear-gradient(135deg, #0f2027 0%, #203a43 45%, #2c5364 100%)',
     emoji: '🎵',
+    linkTo: '/events',
   },
   {
-    id: 3,
+    id: 'fallback-3',
     title: 'VIETNAM FOOTBALL CHAMPIONSHIP 2026',
     location: 'Sân vận động Thống Nhất, TP.HCM',
     date: '15 Tháng 1, 2027',
-    status: 'Đang mở bán',
-    gradient: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 40%, #0f3460 100%)',
+    status: 'Đang diễn ra',
+    gradient: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 45%, #0f3460 100%)',
     emoji: '⚽',
+    linkTo: '/events',
   },
 ]
 
-export default function HeroSlider() {
+const SLIDE_GRADIENTS = [
+  'linear-gradient(135deg, #1a0a2e 0%, #2d1b69 45%, #e5133a 100%)',
+  'linear-gradient(135deg, #0f2027 0%, #203a43 45%, #2c5364 100%)',
+  'linear-gradient(135deg, #1a1a2e 0%, #16213e 45%, #0f3460 100%)',
+]
+
+export default function HeroSlider({ events = [] }) {
   const [current, setCurrent] = useState(0)
 
-  // Tự động chuyển slide
+  const slides = useMemo(() => {
+    const active = events.filter((e) => e.status !== 'ENDED').slice(0, 4)
+    if (active.length === 0) return FALLBACK_SLIDES
+
+    return active.map((ev, idx) => ({
+      id: ev.id,
+      title: ev.name,
+      location: ev.location,
+      date: formatDateRange(ev.startTime, ev.endTime),
+      status: EVENT_STATUS_META[ev.status]?.label || 'Đang mở bán',
+      bannerUrl: ev.bannerUrl,
+      gradient: SLIDE_GRADIENTS[idx % SLIDE_GRADIENTS.length],
+      emoji: '🎫',
+      linkTo: `/events/${ev.id}`,
+    }))
+  }, [events])
+
+  const safeCurrent = current < slides.length ? current : 0
+
   useEffect(() => {
+    if (slides.length <= 1) return
     const timer = setInterval(() => {
-      setCurrent(c => (c + 1) % HERO_SLIDES.length)
-    }, 5000)
+      setCurrent((c) => (c + 1) % slides.length)
+    }, 5500)
     return () => clearInterval(timer)
-  }, [])
+  }, [slides.length])
 
   function prev() {
-    setCurrent(c => (c - 1 + HERO_SLIDES.length) % HERO_SLIDES.length)
+    setCurrent((c) => (c - 1 + slides.length) % slides.length)
   }
 
   function next() {
-    setCurrent(c => (c + 1) % HERO_SLIDES.length)
+    setCurrent((c) => (c + 1) % slides.length)
   }
 
-  const slide = HERO_SLIDES[current]
+  const slide = slides[safeCurrent] || slides[0]
 
   return (
     <div className="hero-section">
-      {/* Slides */}
-      {HERO_SLIDES.map((s, i) => (
-        <div key={s.id} className={`hero-slide ${i === current ? 'active' : ''}`}>
-          <div style={{
-            width: '100%',
-            height: '100%',
-            background: s.gradient,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: '120px',
-          }}>
-            {s.emoji}
-          </div>
+      {slides.map((s, i) => (
+        <div key={s.id} className={`hero-slide ${i === safeCurrent ? 'active' : ''}`}>
+          {s.bannerUrl ? (
+            <img src={s.bannerUrl} alt={s.title} />
+          ) : (
+            <div
+              style={{
+                width: '100%',
+                height: '100%',
+                background: s.gradient,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '110px',
+              }}
+            >
+              {s.emoji}
+            </div>
+          )}
         </div>
       ))}
 
-      {/* Overlay + Content */}
       <div className="hero-overlay">
         <div className="container" style={{ width: '100%' }}>
           <div className="hero-content">
             <div className="hero-badge">
-              <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
-                <circle cx="5" cy="5" r="5"/>
-              </svg>
+              <span className="hero-badge-dot" />
               {slide.status}
             </div>
             <h1 className="hero-title">{slide.title}</h1>
             <div className="hero-meta">
               <div className="hero-meta-item">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/>
-                </svg>
-                {slide.location}
+                <MapPin size={15} />
+                <span>{slide.location}</span>
               </div>
               <div className="hero-meta-item">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/>
-                  <line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
-                </svg>
-                {slide.date}
+                <Calendar size={15} />
+                <span>{slide.date}</span>
               </div>
             </div>
             <div className="hero-actions">
-              <Link to="/events" className="btn btn-primary">
-                Mua vé ngay
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                  <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
-                </svg>
+              <Link to={slide.linkTo} className="btn btn-primary">
+                Đặt vé ngay
+                <ArrowRight size={16} />
               </Link>
-              <button className="btn btn-outline" style={{ color: '#fff', borderColor: 'rgba(255,255,255,0.4)' }}>
-                Xem chi tiết
-              </button>
+              <Link
+                to="/events"
+                className="btn btn-outline"
+                style={{ color: '#fff', borderColor: 'rgba(255,255,255,0.4)' }}
+              >
+                Khám phá tất cả
+              </Link>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Arrows */}
-      <button className="hero-arrow hero-arrow-prev" onClick={prev} aria-label="Slide trước">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-          <polyline points="15 18 9 12 15 6"/>
-        </svg>
-      </button>
-      <button className="hero-arrow hero-arrow-next" onClick={next} aria-label="Slide tiếp">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-          <polyline points="9 18 15 12 9 6"/>
-        </svg>
-      </button>
-
-      {/* Dots */}
-      <div className="hero-dots">
-        {HERO_SLIDES.map((_, i) => (
-          <button
-            key={i}
-            className={`hero-dot ${i === current ? 'active' : ''}`}
-            onClick={() => setCurrent(i)}
-            aria-label={`Slide ${i + 1}`}
-          />
-        ))}
-      </div>
+      {slides.length > 1 && (
+        <>
+          <button type="button" className="hero-arrow hero-arrow-prev" onClick={prev} aria-label="Slide trước">
+            <ChevronLeft size={20} />
+          </button>
+          <button type="button" className="hero-arrow hero-arrow-next" onClick={next} aria-label="Slide tiếp">
+            <ChevronRight size={20} />
+          </button>
+          <div className="hero-dots">
+            {slides.map((s, i) => (
+              <button
+                type="button"
+                key={s.id}
+                className={`hero-dot ${i === safeCurrent ? 'active' : ''}`}
+                onClick={() => setCurrent(i)}
+                aria-label={`Slide ${i + 1}`}
+              />
+            ))}
+          </div>
+        </>
+      )}
     </div>
   )
 }

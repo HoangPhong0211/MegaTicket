@@ -7,6 +7,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -19,8 +20,13 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import com.example.demo.repository.UserRepository;
+
+import java.util.List;
 
 /**
  * Cấu hình bảo mật trung tâm của ứng dụng.
@@ -88,17 +94,37 @@ public class SecurityConfig {
     }
 
     /**
+     * Cấu hình CORS toàn cục ở tầng Spring Security
+     * để trình duyệt (Vite FE) gửi được preflight OPTIONS và header Authorization.
+     */
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration config = new CorsConfiguration();
+        config.setAllowedOriginPatterns(List.of("*"));
+        config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
+        config.setAllowedHeaders(List.of("*"));
+        config.setAllowCredentials(false);
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", config);
+        return source;
+    }
+
+    /**
      * Cấu hình chuỗi filter bảo mật - đây là "trái tim" của Security config.
      *
      * Thứ tự quan trọng:
-     * 1. Tắt CSRF (REST API không dùng session nên không cần)
-     * 2. Tắt Session (dùng JWT stateless thay thế)
-     * 3. Khai báo quy tắc phân quyền từng endpoint
-     * 4. Thêm JwtAuthFilter VÀO TRƯỚC UsernamePasswordAuthenticationFilter
+     * 1. Bật CORS (trước filter xác thực để preflight OPTIONS đi qua)
+     * 2. Tắt CSRF (REST API không dùng session nên không cần)
+     * 3. Tắt Session (dùng JWT stateless thay thế)
+     * 4. Khai báo quy tắc phân quyền từng endpoint
+     * 5. Thêm JwtAuthFilter VÀO TRƯỚC UsernamePasswordAuthenticationFilter
      */
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
+            // Bật CORS theo corsConfigurationSource()
+            .cors(Customizer.withDefaults())
+
             // Tắt CSRF: REST API không dùng form-based authentication
             .csrf(AbstractHttpConfigurer::disable)
 
@@ -113,6 +139,9 @@ public class SecurityConfig {
 
                     // Public: xem danh sách và chi tiết sự kiện (không cần đăng nhập)
                     .requestMatchers(HttpMethod.GET, "/api/events/**").permitAll()
+
+                    // Public: webhook từ VietQR server (không có JWT, phải mở public)
+                    .requestMatchers("/api/payments/webhook").permitAll()
 
                     // Admin only: quản lý sự kiện, đơn hàng, check-in
                     .requestMatchers("/api/admin/**").hasRole("ADMIN")

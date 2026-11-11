@@ -3,111 +3,176 @@
  * Layout: Navbar → HeroSlider → CategoryBar → EventGrid → Footer
  * Data: Fetch từ GET /api/events (EventController)
  */
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
+import { Link } from 'react-router-dom'
+import { ArrowRight, RefreshCw, Ticket, WifiOff } from 'lucide-react'
 import Navbar from '../components/Navbar'
 import HeroSlider from '../components/HeroSlider'
 import CategoryBar from '../components/CategoryBar'
 import EventCard from '../components/EventCard'
 import Footer from '../components/Footer'
+import { eventApi } from '../services/api'
 
-const API_BASE = 'http://localhost:8080'
-
-// Dữ liệu mẫu khi chưa có BE chạy
+// Dữ liệu demo hiển thị khi BE chưa khởi động
 const MOCK_EVENTS = [
-  { id: '1', name: 'BLACKPINK World Tour 2026', location: 'Sân vận động Mỹ Đình, Hà Nội', startTime: '2026-12-20T19:00:00Z', status: 'ON_SALE', bannerUrl: null, seatZones: [{ price: 1500000 }, { price: 3000000 }] },
-  { id: '2', name: 'Đêm nhạc Trịnh Công Sơn - Mùa Thu Hà Nội', location: 'Nhà hát Lớn Hà Nội', startTime: '2027-01-05T20:00:00Z', status: 'UPCOMING', bannerUrl: null, seatZones: [{ price: 500000 }] },
-  { id: '3', name: 'Vietnam Football Championship 2026', location: 'Sân vận động Thống Nhất, TP.HCM', startTime: '2027-01-15T18:00:00Z', status: 'ON_SALE', bannerUrl: null, seatZones: [{ price: 200000 }, { price: 500000 }] },
-  { id: '4', name: 'BTS FAN MEETING - LOVE YOURSELF TOUR', location: 'GEM Center, TP.HCM', startTime: '2027-02-10T19:30:00Z', status: 'UPCOMING', bannerUrl: null, seatZones: [{ price: 2000000 }] },
-  { id: '5', name: 'Lễ hội Ánh sáng Đà Nẵng 2027', location: 'Bãi biển Mỹ Khê, Đà Nẵng', startTime: '2027-01-28T18:00:00Z', status: 'ON_SALE', bannerUrl: null, seatZones: [] },
-  { id: '6', name: 'Triển lãm Nghệ thuật Đương đại Hà Nội', location: 'Bảo tàng Mỹ thuật Việt Nam', startTime: '2027-02-01T09:00:00Z', status: 'UPCOMING', bannerUrl: null, seatZones: [{ price: 50000 }] },
-  { id: '7', name: 'SOOBIN - Hoàng tử nhạc Pop Tour', location: 'Trung tâm Hội nghị Quốc gia', startTime: '2027-02-20T20:00:00Z', status: 'UPCOMING', bannerUrl: null, seatZones: [{ price: 800000 }] },
-  { id: '8', name: 'Formula E - Hà Nội Street Circuit 2027', location: 'Phố Hoàng Diệu, Hà Nội', startTime: '2027-03-05T14:00:00Z', status: 'ON_SALE', bannerUrl: null, seatZones: [{ price: 1000000 }, { price: 2500000 }] },
+  {
+    id: 'demo-1',
+    name: 'MegaTicket Live Music Concert 2026',
+    description: 'Đêm nhạc hội hoành tráng quy tụ các nghệ sĩ hàng đầu.',
+    location: 'Sân vận động Quốc gia Mỹ Đình, Hà Nội',
+    startTime: '2026-12-20T19:00:00+07:00',
+    endTime: '2026-12-20T23:00:00+07:00',
+    status: 'ONGOING',
+    bannerUrl: 'https://images.unsplash.com/photo-1540039155733-5bb30b53aa14?w=900',
+    seatZones: [
+      { id: 'z1', name: 'VIP A', price: 2000000, totalSeats: 50, availableSeats: 18 },
+      { id: 'z2', name: 'GA B (Đứng tự do)', price: 800000, totalSeats: 200, availableSeats: 95 },
+    ],
+  },
+  {
+    id: 'demo-2',
+    name: 'Đêm nhạc Trịnh Công Sơn - Mùa Thu Hà Nội',
+    description: 'Không gian âm nhạc sâu lắng giữa lòng thủ đô.',
+    location: 'Nhà hát Lớn Hà Nội',
+    startTime: '2027-01-05T20:00:00+07:00',
+    endTime: '2027-01-05T22:30:00+07:00',
+    status: 'UPCOMING',
+    bannerUrl: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=900',
+    seatZones: [{ id: 'z3', name: 'Standard', price: 500000, totalSeats: 100, availableSeats: 42 }],
+  },
+  {
+    id: 'demo-3',
+    name: 'Vietnam Football Championship 2026',
+    description: 'Trận cầu tâm điểm mùa giải bóng đá quốc gia.',
+    location: 'Sân vận động Thống Nhất, TP.HCM',
+    startTime: '2027-01-15T18:00:00+07:00',
+    endTime: '2027-01-15T20:30:00+07:00',
+    status: 'ONGOING',
+    bannerUrl: 'https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=900',
+    seatZones: [
+      { id: 'z4', name: 'Khán đài A', price: 500000, totalSeats: 100, availableSeats: 30 },
+      { id: 'z5', name: 'Khán đài B', price: 200000, totalSeats: 300, availableSeats: 150 },
+    ],
+  },
+  {
+    id: 'demo-4',
+    name: 'Lễ hội Ánh sáng & Sân khấu Đà Nẵng 2027',
+    description: 'Trình diễn ánh sáng nghệ thuật bên bờ biển Mỹ Khê.',
+    location: 'Bãi biển Mỹ Khê, Đà Nẵng',
+    startTime: '2027-01-28T18:00:00+07:00',
+    endTime: '2027-01-28T23:00:00+07:00',
+    status: 'UPCOMING',
+    bannerUrl: 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=900',
+    seatZones: [{ id: 'z6', name: 'GA Khu A', price: 350000, totalSeats: 500, availableSeats: 320 }],
+  },
 ]
+
+const CATEGORY_KEYWORDS = {
+  music: ['nhạc', 'music', 'concert', 'live', 'tour', 'ca sĩ', 'pop', 'symphony'],
+  sport: ['bóng', 'football', 'sport', 'thể thao', 'chạy', 'marathon', 'race', 'championship'],
+  theater: ['sân khấu', 'kịch', 'nhà hát', 'theater', 'nghệ thuật', 'vở'],
+  festival: ['lễ hội', 'festival', 'ánh sáng', 'carnival'],
+}
 
 export default function HomePage() {
   const [events, setEvents] = useState([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
+  const [isDemoMode, setIsDemoMode] = useState(false)
   const [activeCategory, setActiveCategory] = useState('all')
 
-  useEffect(() => {
-    async function fetchEvents() {
-      try {
-        const res = await fetch(`${API_BASE}/api/events`)
-        if (!res.ok) throw new Error('API không phản hồi')
-        const data = await res.json()
-        setEvents(data)
-      } catch {
-        // Dùng mock data khi BE chưa chạy
-        setEvents(MOCK_EVENTS)
-      } finally {
-        setLoading(false)
-      }
+  const fetchEvents = useCallback(async () => {
+    setLoading(true)
+    try {
+      const data = await eventApi.getAll()
+      setEvents(Array.isArray(data) ? data : [])
+      setIsDemoMode(false)
+    } catch {
+      setEvents(MOCK_EVENTS)
+      setIsDemoMode(true)
+    } finally {
+      setLoading(false)
     }
-    fetchEvents()
   }, [])
 
-  // Phân nhóm events theo trạng thái
-  const onSaleEvents   = events.filter(e => e.status === 'ON_SALE')
-  const upcomingEvents = events.filter(e => e.status === 'UPCOMING')
+  useEffect(() => {
+    fetchEvents()
+  }, [fetchEvents])
+
+  const filteredEvents = useMemo(() => {
+    if (activeCategory === 'all') return events
+    if (activeCategory === 'ONGOING' || activeCategory === 'UPCOMING') {
+      return events.filter((e) => e.status === activeCategory)
+    }
+    const keywords = CATEGORY_KEYWORDS[activeCategory] || []
+    return events.filter((e) => {
+      const text = `${e.name || ''} ${e.description || ''}`.toLowerCase()
+      return keywords.some((kw) => text.includes(kw))
+    })
+  }, [events, activeCategory])
+
+  // Tách nhóm hiển thị theo đúng EventStatus enum của BE: ONGOING, UPCOMING, ENDED
+  const ongoingEvents  = filteredEvents.filter((e) => e.status === 'ONGOING')
+  const upcomingEvents = filteredEvents.filter((e) => e.status === 'UPCOMING')
+  const endedEvents    = filteredEvents.filter((e) => e.status === 'ENDED')
 
   return (
     <>
       <Navbar />
       <main style={{ flex: 1 }}>
         {/* Hero Banner */}
-        <HeroSlider />
+        <HeroSlider events={!isDemoMode ? events : []} />
 
         {/* Category Filter */}
         <CategoryBar activeCategory={activeCategory} onCategoryChange={setActiveCategory} />
 
         {/* Events Sections */}
-        <div className="container" style={{ paddingTop: '40px', paddingBottom: '60px' }}>
-
-          {error && (
-            <div className="auth-alert error" style={{ marginBottom: 24 }}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-              </svg>
-              {error}
+        <div className="container" style={{ paddingTop: '36px', paddingBottom: '64px' }}>
+          {isDemoMode && (
+            <div className="demo-banner" style={{ marginBottom: 28 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <WifiOff size={18} style={{ flexShrink: 0 }} />
+                <span>
+                  Không kết nối được tới máy chủ Backend (<code>localhost:8080</code>). Đang hiển thị dữ liệu demo giao diện.
+                </span>
+              </div>
+              <button type="button" className="btn btn-outline" style={{ padding: '6px 14px', fontSize: 12 }} onClick={fetchEvents}>
+                <RefreshCw size={13} />
+                Thử lại
+              </button>
             </div>
           )}
 
-          {/* Đang mở bán */}
           {loading ? (
             <EventGridSkeleton />
           ) : (
             <>
-              {onSaleEvents.length > 0 && (
+              {/* Sự kiện đang diễn ra */}
+              {ongoingEvents.length > 0 && (
                 <section className="events-section" style={{ paddingTop: 0 }}>
                   <div className="section-header">
-                    <h2 className="section-title">Đang mở bán</h2>
-                    <button className="btn btn-ghost" style={{ fontSize: '13px' }}>
+                    <h2 className="section-title">Đang diễn ra</h2>
+                    <Link to="/events?status=ONGOING" className="btn btn-ghost" style={{ fontSize: '13px' }}>
                       Xem tất cả
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                        <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
-                      </svg>
-                    </button>
+                      <ArrowRight size={14} />
+                    </Link>
                   </div>
                   <div className="events-grid">
-                    {onSaleEvents.map((event, i) => (
+                    {ongoingEvents.map((event, i) => (
                       <EventCard key={event.id} event={event} index={i} />
                     ))}
                   </div>
                 </section>
               )}
 
-              {/* Sắp diễn ra */}
+              {/* Sự kiện sắp diễn ra & đang mở bán */}
               {upcomingEvents.length > 0 && (
-                <section className="events-section">
+                <section className="events-section" style={ongoingEvents.length === 0 ? { paddingTop: 0 } : undefined}>
                   <div className="section-header">
-                    <h2 className="section-title">Sắp diễn ra</h2>
-                    <button className="btn btn-ghost" style={{ fontSize: '13px' }}>
+                    <h2 className="section-title">Sắp diễn ra · Đang mở bán</h2>
+                    <Link to="/events?status=UPCOMING" className="btn btn-ghost" style={{ fontSize: '13px' }}>
                       Xem tất cả
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                        <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
-                      </svg>
-                    </button>
+                      <ArrowRight size={14} />
+                    </Link>
                   </div>
                   <div className="events-grid">
                     {upcomingEvents.map((event, i) => (
@@ -117,16 +182,36 @@ export default function HomePage() {
                 </section>
               )}
 
+              {/* Sự kiện đã kết thúc */}
+              {endedEvents.length > 0 && (
+                <section className="events-section">
+                  <div className="section-header">
+                    <h2 className="section-title">Đã kết thúc</h2>
+                  </div>
+                  <div className="events-grid">
+                    {endedEvents.map((event, i) => (
+                      <EventCard key={event.id} event={event} index={i} />
+                    ))}
+                  </div>
+                </section>
+              )}
+
               {/* Empty State */}
-              {events.length === 0 && (
+              {filteredEvents.length === 0 && (
                 <div className="empty-state">
-                  <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                    <path d="M20 12V22H4V12"/>
-                    <path d="M22 7H2v5h20V7z"/>
-                    <path d="M12 22V7"/>
-                  </svg>
-                  <h3>Chưa có sự kiện nào</h3>
-                  <p>Các sự kiện sắp được cập nhật. Vui lòng quay lại sau!</p>
+                  <Ticket size={56} />
+                  <h3>Không tìm thấy sự kiện phù hợp</h3>
+                  <p>Thử chọn danh mục khác hoặc xem toàn bộ danh sách sự kiện.</p>
+                  {activeCategory !== 'all' && (
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      style={{ marginTop: 8 }}
+                      onClick={() => setActiveCategory('all')}
+                    >
+                      Xem tất cả sự kiện
+                    </button>
+                  )}
                 </div>
               )}
             </>
@@ -138,39 +223,21 @@ export default function HomePage() {
   )
 }
 
-// Skeleton loading khi chờ API
 function EventGridSkeleton() {
   return (
-    <div style={{ paddingTop: '40px' }}>
-      <div style={{
-        height: 28, width: 180, background: 'var(--bg-card)',
-        borderRadius: 6, marginBottom: 24,
-        animation: 'pulse 1.5s ease-in-out infinite alternate'
-      }} />
+    <div style={{ paddingTop: '12px' }}>
+      <div className="skeleton-bar" style={{ height: 28, width: 220, marginBottom: 24 }} />
       <div className="events-grid">
         {Array.from({ length: 8 }).map((_, i) => (
-          <SkeletonCard key={i} />
+          <div key={i} className="event-card skeleton-pulse">
+            <div style={{ aspectRatio: '3/4', background: 'var(--bg-card-hover)' }} />
+            <div style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ height: 16, background: 'var(--bg-card-hover)', borderRadius: 4 }} />
+              <div style={{ height: 16, background: 'var(--bg-card-hover)', borderRadius: 4, width: '70%' }} />
+              <div style={{ height: 12, background: 'var(--bg-card-hover)', borderRadius: 4, width: '50%', marginTop: 4 }} />
+            </div>
+          </div>
         ))}
-      </div>
-
-      <style>{`
-        @keyframes pulse {
-          from { opacity: 0.6; }
-          to { opacity: 1; }
-        }
-      `}</style>
-    </div>
-  )
-}
-
-function SkeletonCard() {
-  return (
-    <div className="event-card" style={{ animation: 'pulse 1.5s ease-in-out infinite alternate' }}>
-      <div style={{ aspectRatio: '3/4', background: 'var(--bg-card-hover)' }} />
-      <div style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
-        <div style={{ height: 16, background: 'var(--bg-card-hover)', borderRadius: 4 }} />
-        <div style={{ height: 16, background: 'var(--bg-card-hover)', borderRadius: 4, width: '70%' }} />
-        <div style={{ height: 12, background: 'var(--bg-card-hover)', borderRadius: 4, width: '50%', marginTop: 4 }} />
       </div>
     </div>
   )

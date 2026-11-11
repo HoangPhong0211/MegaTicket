@@ -32,6 +32,14 @@ public class DataInitializer implements CommandLineRunner {
     @Transactional
     public void run(String... args) {
         if (userRepository.count() > 0) {
+            // Tự động vá mật khẩu nếu DB từng được seed bằng chuỗi giả trước Phase 1
+            userRepository.findByEmail("admin@megaticket.vn").ifPresent(existingAdmin -> {
+                if ("$2a$10$sampleHashedPasswordForDemoOnly".equals(existingAdmin.getPasswordHash())) {
+                    existingAdmin.setPasswordHash(passwordEncoder.encode("admin123"));
+                    userRepository.save(existingAdmin);
+                    log.info("Đã cập nhật lại password_hash BCrypt cho admin@megaticket.vn.");
+                }
+            });
             log.info("Dữ liệu mẫu đã tồn tại, bỏ qua bước khởi tạo (seeding).");
             return;
         }
