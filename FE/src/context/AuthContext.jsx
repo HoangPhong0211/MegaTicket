@@ -28,6 +28,16 @@ export function AuthProvider({ children }) {
     return userInfo
   }, [])
 
+  /** Cập nhật thông tin user trong session sau khi sửa Profile */
+  const updateUserInfo = useCallback((partial) => {
+    setUser((prev) => {
+      if (!prev) return prev
+      const next = { ...prev, ...partial }
+      localStorage.setItem('megaticket_user', JSON.stringify(next))
+      return next
+    })
+  }, [])
+
   /** Đăng nhập - POST /api/auth/login */
   const login = useCallback(async (email, password) => {
     const data = await apiFetch('/api/auth/login', {
@@ -63,6 +73,7 @@ export function AuthProvider({ children }) {
         login,
         register,
         logout,
+        updateUserInfo,
         isLoggedIn: !!user && !!token,
         isAdmin: user?.role === 'ADMIN',
       }}

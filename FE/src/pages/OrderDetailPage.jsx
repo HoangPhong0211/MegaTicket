@@ -27,7 +27,7 @@ import {
 import Navbar from '../components/Navbar'
 import Footer from '../components/Footer'
 import CountdownTimer from '../components/CountdownTimer'
-import { orderApi, paymentApi } from '../services/api'
+import { orderApi, paymentApi, ticketApi } from '../services/api'
 import {
   ORDER_STATUS_META,
   formatCurrency,
@@ -54,6 +54,7 @@ export default function OrderDetailPage() {
   const [confirmCancel, setConfirmCancel] = useState(false)
   const [cancelling, setCancelling] = useState(false)
   const [actionMessage, setActionMessage] = useState('')
+  const [eTickets, setETickets] = useState([])
 
   const loadOrder = useCallback(async (silent = false) => {
     if (!silent) setLoading(true)
@@ -108,6 +109,21 @@ export default function OrderDetailPage() {
 
     return () => clearInterval(timer)
   }, [order, loadOrder])
+
+  // Tải danh sách vé điện tử chi tiết (kèm ticketQrUrl & trạng thái check-in) khi đơn đã PAID
+  useEffect(() => {
+    if (!order || order.status !== 'PAID') return
+    let active = true
+    ticketApi
+      .getByOrder(order.id)
+      .then((list) => {
+        if (active && Array.isArray(list)) setETickets(list)
+      })
+      .catch(() => {
+        // Fallback sử dụng order.tickets nếu user hiện tại là Admin xem đơn người khác
+      })
+    return () => { active = false }
+  }, [order])
 
   const handleTimerExpire = useCallback(() => {
     setActionMessage('Thời gian giữ chỗ 10 phút đã hết. Hệ thống sẽ giải phóng ghế về trạng thái trống.')
@@ -440,35 +456,59 @@ export default function OrderDetailPage() {
                     )}
 
                     <div className="eticket-stubs">
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, gap: 10, flexWrap: 'wrap' }}>
                         <h3 style={{ fontSize: 16, fontWeight: 700 }}>
-                          Danh sách vé của bạn ({order.tickets?.length || 0} vé)
+                          Danh sách vé của bạn ({(eTickets.length > 0 ? eTickets : order.tickets || []).length} vé)
                         </h3>
-                        <button
-                          type="button"
-                          className="btn btn-outline"
-                          style={{ padding: '7px 14px', fontSize: 12 }}
-                          onClick={() => window.print()}
-                        >
-                          <Printer size={14} />
-                          In vé
-                        </button>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <Link
+                            to="/tickets"
+                            className="btn btn-primary"
+                            style={{ padding: '7px 14px', fontSize: 12 }}
+                          >
+                            <QrCode size={14} />
+                            Mở ví Vé điện tử
+                          </Link>
+                          <button
+                            type="button"
+                            className="btn btn-outline"
+                            style={{ padding: '7px 14px', fontSize: 12 }}
+                            onClick={() => window.print()}
+                          >
+                            <Printer size={14} />
+                            In vé
+                          </button>
+                        </div>
                       </div>
 
                       <div className="ticket-stub-list">
-                        {(order.tickets || []).map((t) => (
+                        {(eTickets.length > 0 ? eTickets : order.tickets || []).map((t) => (
                           <div key={t.ticketId} className="ticket-stub">
-                            <div className="ticket-stub-left">
-                              <span className="ticket-stub-zone">{t.zoneName}</span>
-                              <div className="ticket-stub-seat">
-                                {t.seatNumber ? `Ghế ${t.seatNumber}` : 'Khu đứng tự do (GA)'}
-                              </div>
-                              <div className="ticket-stub-code">
-                                Mã vé: <code>{t.ticketCode}</code>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0 }}>
+                              {t.ticketQrUrl && (
+                                <div className="ticket-stub-qr-mini">
+                                  <img src={t.ticketQrUrl} alt={`QR ${t.ticketCode}`} />
+                                </div>
+                              )}
+                              <div className="ticket-stub-left">
+                                <span className="ticket-stub-zone">{t.zoneName}</span>
+                                <div className="ticket-stub-seat">
+                                  {t.seatNumber ? `Ghế ${t.seatNumber}` : 'Khu đứng tự do (GA)'}
+                                </div>
+                                <div className="ticket-stub-code">
+                                  Mã vé: <code>{t.ticketCode}</code>
+                                </div>
+                                {t.isCheckedIn && t.checkedInAt && (
+                                  <div style={{ fontSize: 11, color: 'var(--success)', marginTop: 4 }}>
+                                    Đã check-in lúc {formatDateTime(t.checkedInAt)}
+                                  </div>
+                                )}
                               </div>
                             </div>
                             <div className="ticket-stub-right">
-                              <span className="badge badge-on-sale">Hợp lệ</span>
+                              <span className={`badge ${t.isCheckedIn ? 'badge-sold-out' : 'badge-on-sale'}`}>
+                                {t.isCheckedIn ? 'Đã Check-in' : 'Hợp lệ'}
+                              </span>
                               <span className="ticket-stub-price">{formatCurrency(t.price)}</span>
                             </div>
                           </div>

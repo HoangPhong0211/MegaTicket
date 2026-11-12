@@ -1,15 +1,14 @@
 /**
  * AdminPage - Bảng điều khiển Quản trị viên (ROLE_ADMIN)
  * Kết nối BE AdminController:
- *   GET    /api/events
- *   POST   /api/admin/events
- *   PUT    /api/admin/events/{id}
- *   DELETE /api/admin/events/{id}
- *   POST   /api/admin/events/{eventId}/zones
- *   GET    /api/admin/orders
+ *   - Doanh thu: GET /api/admin/revenue
+ *   - Soát vé QR: POST /api/admin/tickets/check-in, GET /api/admin/events/{id}/check-in-stats
+ *   - Sự kiện & Zone: GET /api/events, POST/PUT/DELETE /api/admin/events, POST /api/admin/events/{id}/zones
+ *   - Vật phẩm: POST /api/admin/events/{id}/merchandises, PUT/DELETE /api/admin/merchandises/{id}
+ *   - Đơn hàng: GET /api/admin/orders?status=..., GET /api/admin/orders/{id}
  */
-import { useState, useEffect, useCallback, useMemo } from 'react'
-import { Link } from 'react-router-dom'
+import { useState, useEffect, useCallback } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import {
   Plus,
   Trash2,
@@ -22,11 +21,16 @@ import {
   X,
   ExternalLink,
   CheckCircle2,
-  Clock,
-  DollarSign,
+  BarChart3,
+  QrCode,
+  ShoppingBag,
+  Eye,
 } from 'lucide-react'
 import Navbar from '../components/Navbar'
 import Footer from '../components/Footer'
+import AdminRevenuePanel from '../components/admin/AdminRevenuePanel'
+import AdminCheckInPanel from '../components/admin/AdminCheckInPanel'
+import AdminMerchandisePanel from '../components/admin/AdminMerchandisePanel'
 import { adminApi, eventApi } from '../services/api'
 import {
   EVENT_STATUS_META,
@@ -35,6 +39,14 @@ import {
   formatDateTime,
   getShortId,
 } from '../utils/format'
+
+const ADMIN_TABS = [
+  { id: 'revenue', label: 'Doanh thu', icon: BarChart3 },
+  { id: 'checkin', label: 'Check-in QR', icon: QrCode },
+  { id: 'events', label: 'Sự kiện & Ghế', icon: Calendar },
+  { id: 'merchandises', label: 'Vật phẩm', icon: ShoppingBag },
+  { id: 'orders', label: 'Đơn hàng', icon: ShoppingCart },
+]
 
 function toLocalDateTimeInput(iso) {
   if (!iso) return ''
@@ -45,17 +57,39 @@ function toLocalDateTimeInput(iso) {
 }
 
 export default function AdminPage() {
-  const [activeTab, setActiveTab] = useState('events')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const initialTab = searchParams.get('tab')
+  const [activeTab, setActiveTab] = useState(() =>
+    ADMIN_TABS.some((t) => t.id === initialTab) ? initialTab : 'revenue'
+  )
+
   const [events, setEvents] = useState([])
   const [orders, setOrders] = useState([])
+  const [revenueStats, setRevenueStats] = useState(null)
+  const [orderStatusFilter, setOrderStatusFilter] = useState('')
+  const [checkInEventId, setCheckInEventId] = useState('')
+
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [toast, setToast] = useState('')
 
   // Modals
-  const [eventModal, setEventModal] = useState(null) // null | { mode: 'create' | 'edit', event?: ... }
+  const [eventModal, setEventModal] = useState(null)
   const [zoneModalEvent, setZoneModalEvent] = useState(null)
   const [deleteConfirmId, setDeleteConfirmId] = useState(null)
+  const [inspectOrder, setInspectOrder] = useState(null)
+
+  useEffect(() => {
+    const tab = searchParams.get('tab')
+    if (tab && ADMIN_TABS.some((t) => t.id === tab)) {
+      setActiveTab(tab)
+    }
+  }, [searchParams])
+
+  const switchTab = (tabId) => {
+    setActiveTab(tabId)
+    setSearchParams({ tab: tabId }, { replace: true })
+  }
 
   const showToast = (msg) => {
     setToast(msg)
@@ -66,38 +100,33 @@ export default function AdminPage() {
     setLoading(true)
     setError('')
     try {
-      const [evList, ordList] = await Promise.all([
+      const [evList, ordList, revData] = await Promise.all([
         eventApi.getAll(),
-        adminApi.getAllOrders(),
+        adminApi.getAllOrders(orderStatusFilter || undefined),
+        adminApi.getRevenueStats().catch(() => null),
       ])
       setEvents(Array.isArray(evList) ? evList : [])
-      const sortedOrders = Array.isArray(ordList)
-        ? [...ordList].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-        : []
-      setOrders(sortedOrders)
+      setOrders(Array.isArray(ordList) ? ordList : [])
+      setRevenueStats(revData)
     } catch (err) {
       setError(err.message || 'Không thể tải dữ liệu quản trị.')
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [orderStatusFilter])
 
   useEffect(() => {
     loadData()
   }, [loadData])
 
-  const stats = useMemo(() => {
-    const paidOrders = orders.filter((o) => o.status === 'PAID')
-    const pendingOrders = orders.filter((o) => o.status === 'PENDING')
-    const revenue = paidOrders.reduce((s, o) => s + Number(o.totalAmount || 0), 0)
-    return {
-      totalEvents: events.length,
-      totalOrders: orders.length,
-      paidCount: paidOrders.length,
-      pendingCount: pendingOrders.length,
-      revenue,
+  async function handleInspectOrder(orderId) {
+    try {
+      const detail = await adminApi.getOrderDetail(orderId)
+      setInspectOrder(detail)
+    } catch (err) {
+      setError(err.message || 'Không thể tải chi tiết đơn hàng.')
     }
-  }, [events, orders])
+  }
 
   async function handleDeleteEvent(id) {
     try {
@@ -118,7 +147,7 @@ export default function AdminPage() {
           <div className="container" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
             <div>
               <h1 className="page-title">Bảng điều khiển Quản trị</h1>
-              <p className="page-subtitle">Quản lý sự kiện, khu vực ghế ngồi (Zones) và đơn hàng hệ thống</p>
+              <p className="page-subtitle">Doanh thu · Soát vé Check-in QR · Sự kiện · Vật phẩm · Đơn hàng</p>
             </div>
             <div style={{ display: 'flex', gap: 10 }}>
               <button type="button" className="btn btn-outline" onClick={loadData} disabled={loading}>
@@ -152,60 +181,47 @@ export default function AdminPage() {
             </div>
           )}
 
-          {/* KPI Cards */}
-          <div className="admin-stats-grid">
-            <div className="admin-stat-card">
-              <div className="admin-stat-icon"><Calendar size={20} /></div>
-              <div>
-                <div className="admin-stat-label">Tổng sự kiện</div>
-                <div className="admin-stat-value">{stats.totalEvents}</div>
-              </div>
-            </div>
-            <div className="admin-stat-card">
-              <div className="admin-stat-icon"><ShoppingCart size={20} /></div>
-              <div>
-                <div className="admin-stat-label">Tổng đơn hàng</div>
-                <div className="admin-stat-value">{stats.totalOrders}</div>
-              </div>
-            </div>
-            <div className="admin-stat-card">
-              <div className="admin-stat-icon warning"><Clock size={20} /></div>
-              <div>
-                <div className="admin-stat-label">Đang giữ chỗ</div>
-                <div className="admin-stat-value">{stats.pendingCount}</div>
-              </div>
-            </div>
-            <div className="admin-stat-card">
-              <div className="admin-stat-icon success"><DollarSign size={20} /></div>
-              <div>
-                <div className="admin-stat-label">Doanh thu (PAID)</div>
-                <div className="admin-stat-value">{formatCurrency(stats.revenue)}</div>
-              </div>
-            </div>
-          </div>
-
           {/* Admin Tabs */}
           <div className="filter-tabs" style={{ marginBottom: 24 }}>
-            <button
-              type="button"
-              className={`filter-tab ${activeTab === 'events' ? 'active' : ''}`}
-              onClick={() => setActiveTab('events')}
-            >
-              <Calendar size={14} />
-              Sự kiện & Khu vực ghế ({events.length})
-            </button>
-            <button
-              type="button"
-              className={`filter-tab ${activeTab === 'orders' ? 'active' : ''}`}
-              onClick={() => setActiveTab('orders')}
-            >
-              <ShoppingCart size={14} />
-              Tất cả Đơn hàng ({orders.length})
-            </button>
+            {ADMIN_TABS.map((tab) => {
+              const Icon = tab.icon
+              const badgeCount =
+                tab.id === 'events'
+                  ? events.length
+                  : tab.id === 'orders'
+                  ? orders.length
+                  : null
+              return (
+                <button
+                  type="button"
+                  key={tab.id}
+                  className={`filter-tab ${activeTab === tab.id ? 'active' : ''}`}
+                  onClick={() => switchTab(tab.id)}
+                >
+                  <Icon size={14} />
+                  {tab.label}
+                  {badgeCount !== null && (
+                    <span className="filter-tab-count">{badgeCount}</span>
+                  )}
+                </button>
+              )
+            })}
           </div>
 
           {loading ? (
-            <div className="skeleton-bar" style={{ height: 280, borderRadius: 14 }} />
+            <div className="skeleton-bar" style={{ height: 320, borderRadius: 14 }} />
+          ) : activeTab === 'revenue' ? (
+            <AdminRevenuePanel
+              revenueStats={revenueStats}
+              onInspectCheckIn={(evId) => {
+                setCheckInEventId(evId)
+                switchTab('checkin')
+              }}
+            />
+          ) : activeTab === 'checkin' ? (
+            <AdminCheckInPanel events={events} initialEventId={checkInEventId} />
+          ) : activeTab === 'merchandises' ? (
+            <AdminMerchandisePanel events={events} onToast={showToast} />
           ) : activeTab === 'events' ? (
             <div className="admin-events-list">
               {events.map((ev) => {
@@ -241,6 +257,17 @@ export default function AdminPage() {
                     </div>
 
                     <div className="admin-event-actions">
+                      <button
+                        type="button"
+                        className="btn btn-ghost"
+                        style={{ padding: '8px 12px', fontSize: 12 }}
+                        onClick={() => {
+                          setCheckInEventId(ev.id)
+                          switchTab('checkin')
+                        }}
+                      >
+                        <QrCode size={14} /> Check-in
+                      </button>
                       <Link to={`/events/${ev.id}`} className="btn btn-ghost" style={{ padding: '8px 12px', fontSize: 12 }}>
                         <ExternalLink size={14} /> Xem
                       </Link>
@@ -288,49 +315,144 @@ export default function AdminPage() {
               })}
             </div>
           ) : (
-            /* Orders Table */
-            <div className="panel-card" style={{ padding: 0, overflow: 'hidden' }}>
-              <div className="table-scroll">
-                <table className="admin-table">
-                  <thead>
-                    <tr>
-                      <th>Mã đơn</th>
-                      <th>Trạng thái</th>
-                      <th>Vé đã đặt</th>
-                      <th>Tổng tiền</th>
-                      <th>Ngày tạo</th>
-                      <th>Thao tác</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {orders.map((ord) => {
-                      const st = ORDER_STATUS_META[ord.status] || ORDER_STATUS_META.PENDING
-                      return (
-                        <tr key={ord.id}>
-                          <td><code>#{getShortId(ord.id)}</code></td>
-                          <td><span className={`badge ${st.cls}`}>{st.label}</span></td>
-                          <td>{ord.tickets?.length || 0} vé</td>
-                          <td style={{ fontWeight: 700, color: 'var(--primary)' }}>
-                            {formatCurrency(ord.totalAmount)}
-                          </td>
-                          <td style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-                            {formatDateTime(ord.createdAt)}
-                          </td>
-                          <td>
-                            <Link to={`/orders/${ord.id}`} className="btn btn-ghost" style={{ padding: '6px 10px', fontSize: 12 }}>
-                              Chi tiết <ExternalLink size={12} />
-                            </Link>
+            /* Orders Table with Status Filter */
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div className="filter-tabs">
+                {[
+                  { id: '', label: 'Tất cả đơn' },
+                  { id: 'PAID', label: 'Đã thanh toán' },
+                  { id: 'PENDING', label: 'Chờ thanh toán' },
+                  { id: 'CANCELLED', label: 'Đã hủy' },
+                ].map((f) => (
+                  <button
+                    type="button"
+                    key={f.id}
+                    className={`filter-tab ${orderStatusFilter === f.id ? 'active' : ''}`}
+                    onClick={() => setOrderStatusFilter(f.id)}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
+
+              <div className="panel-card" style={{ padding: 0, overflow: 'hidden' }}>
+                <div className="table-scroll">
+                  <table className="admin-table">
+                    <thead>
+                      <tr>
+                        <th>Mã đơn</th>
+                        <th>Trạng thái</th>
+                        <th>Vé & Vật phẩm</th>
+                        <th>Tổng tiền</th>
+                        <th>Ngày tạo</th>
+                        <th>Thao tác</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {orders.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 32 }}>
+                            Không có đơn hàng nào khớp bộ lọc.
                           </td>
                         </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
+                      ) : (
+                        orders.map((ord) => {
+                          const st = ORDER_STATUS_META[ord.status] || ORDER_STATUS_META.PENDING
+                          return (
+                            <tr key={ord.id}>
+                              <td><code>#{getShortId(ord.id)}</code></td>
+                              <td><span className={`badge ${st.cls}`}>{st.label}</span></td>
+                              <td>
+                                {ord.tickets?.length || 0} vé
+                                {ord.merchandises?.length > 0 ? ` · ${ord.merchandises.length} món merch` : ''}
+                              </td>
+                              <td style={{ fontWeight: 700, color: 'var(--primary)' }}>
+                                {formatCurrency(ord.totalAmount)}
+                              </td>
+                              <td style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                                {formatDateTime(ord.createdAt)}
+                              </td>
+                              <td>
+                                <button
+                                  type="button"
+                                  className="btn btn-ghost"
+                                  style={{ padding: '6px 10px', fontSize: 12 }}
+                                  onClick={() => handleInspectOrder(ord.id)}
+                                >
+                                  <Eye size={13} /> Chi tiết
+                                </button>
+                              </td>
+                            </tr>
+                          )
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
           )}
         </div>
       </main>
+
+      {/* Modal Chi tiết Đơn hàng (Admin) */}
+      {inspectOrder && (
+        <div className="modal-backdrop" onClick={() => setInspectOrder(null)}>
+          <div className="modal-card" style={{ maxWidth: 560 }} onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>Chi tiết đơn hàng #{getShortId(inspectOrder.id)}</h2>
+              <button type="button" className="icon-remove-btn" onClick={() => setInspectOrder(null)}>
+                <X size={18} />
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <span className={`badge ${(ORDER_STATUS_META[inspectOrder.status] || ORDER_STATUS_META.PENDING).cls}`}>
+                {(ORDER_STATUS_META[inspectOrder.status] || ORDER_STATUS_META.PENDING).label}
+              </span>
+              <span style={{ fontSize: 20, fontWeight: 800, color: 'var(--primary)' }}>
+                {formatCurrency(inspectOrder.totalAmount)}
+              </span>
+            </div>
+
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 16 }}>
+              <div>ID: <code>{inspectOrder.id}</code></div>
+              <div style={{ marginTop: 4 }}>Ngày tạo: {formatDateTime(inspectOrder.createdAt)}</div>
+              {inspectOrder.expiresAt && (
+                <div style={{ marginTop: 4 }}>Hạn thanh toán: {formatDateTime(inspectOrder.expiresAt)}</div>
+              )}
+            </div>
+
+            <div className="summary-section-label">Vé trong đơn ({inspectOrder.tickets?.length || 0})</div>
+            <div className="ticket-stub-list" style={{ marginBottom: 16 }}>
+              {(inspectOrder.tickets || []).map((t) => (
+                <div key={t.ticketId} className="ticket-stub">
+                  <div>
+                    <span className="ticket-stub-zone">{t.zoneName}</span>
+                    <div className="ticket-stub-seat">{t.seatNumber || 'GA'}</div>
+                    <div className="ticket-stub-code"><code>{t.ticketCode}</code></div>
+                  </div>
+                  <span className="ticket-stub-price">{formatCurrency(t.price)}</span>
+                </div>
+              ))}
+            </div>
+
+            {inspectOrder.merchandises?.length > 0 && (
+              <>
+                <div className="summary-section-label">Vật phẩm lưu niệm</div>
+                <div className="summary-items">
+                  {inspectOrder.merchandises.map((m) => (
+                    <div key={m.merchandiseId} className="summary-line">
+                      <span>{m.merchandiseName} x{m.quantity}</span>
+                      <span>{formatCurrency(Number(m.price) * m.quantity)}</span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Modal Tạo / Sửa Sự kiện */}
       {eventModal && (

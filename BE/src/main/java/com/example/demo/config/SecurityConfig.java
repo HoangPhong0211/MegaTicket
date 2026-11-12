@@ -137,8 +137,8 @@ public class SecurityConfig {
                     // Public: ai cũng truy cập được (đăng ký, đăng nhập)
                     .requestMatchers("/api/auth/**").permitAll()
 
-                    // Public: xem danh sách và chi tiết sự kiện (không cần đăng nhập)
-                    .requestMatchers(HttpMethod.GET, "/api/events/**").permitAll()
+                    // Public: xem danh sách, chi tiết sự kiện & vật phẩm (không cần đăng nhập)
+                    .requestMatchers(HttpMethod.GET, "/api/events/**", "/api/merchandises/**").permitAll()
 
                     // Public: webhook từ VietQR server (không có JWT, phải mở public)
                     .requestMatchers("/api/payments/webhook").permitAll()

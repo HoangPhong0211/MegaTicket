@@ -4,6 +4,9 @@ import './App.css'
 import HomePage from './pages/HomePage'
 import EventsPage from './pages/EventsPage'
 import EventDetailPage from './pages/EventDetailPage'
+import MerchandisesPage from './pages/MerchandisesPage'
+import MyTicketsPage from './pages/MyTicketsPage'
+import ProfilePage from './pages/ProfilePage'
 import OrderDetailPage from './pages/OrderDetailPage'
 import MyOrdersPage from './pages/MyOrdersPage'
 import AdminPage from './pages/AdminPage'
@@ -20,7 +23,24 @@ function App() {
           <Route path="/" element={<HomePage />} />
           <Route path="/events" element={<EventsPage />} />
           <Route path="/events/:id" element={<EventDetailPage />} />
+          <Route path="/merchandises" element={<MerchandisesPage />} />
 
+          <Route
+            path="/tickets"
+            element={
+              <ProtectedRoute>
+                <MyTicketsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/profile"
+            element={
+              <ProtectedRoute>
+                <ProfilePage />
+              </ProtectedRoute>
+            }
+          />
           <Route
             path="/orders"
             element={

@@ -207,7 +207,7 @@ public class OrderService {
      */
     @Transactional(readOnly = true)
     public List<OrderResponse> getMyOrders(User user) {
-        return orderRepository.findByUserId(user.getId())
+        return orderRepository.findByUserIdOrderByCreatedAtDesc(user.getId())
                 .stream()
                 .map(order -> {
                     List<Ticket> tickets = ticketRepository.findByOrderId(order.getId());
@@ -309,17 +309,30 @@ public class OrderService {
     // ========== ADMIN ==========
 
     /**
-     * Admin xem tất cả đơn hàng (có thể thêm filter/pagination sau).
+     * Admin xem tất cả đơn hàng (hỗ trợ lọc theo trạng thái nếu truyền status).
      */
     @Transactional(readOnly = true)
-    public List<OrderResponse> getAllOrders() {
-        return orderRepository.findAll()
-                .stream()
+    public List<OrderResponse> getAllOrders(OrderStatus status) {
+        List<Order> orders = (status != null)
+                ? orderRepository.findByStatusOrderByCreatedAtDesc(status)
+                : orderRepository.findAllByOrderByCreatedAtDesc();
+        return orders.stream()
                 .map(order -> {
                     List<Ticket> tickets = ticketRepository.findByOrderId(order.getId());
                     return toOrderResponse(order, tickets, order.getOrderItems());
                 })
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * Admin xem chi tiết bất kỳ đơn hàng nào.
+     */
+    @Transactional(readOnly = true)
+    public OrderResponse getOrderByIdForAdmin(UUID orderId) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new BusinessException("Không tìm thấy đơn hàng ID: " + orderId));
+        List<Ticket> tickets = ticketRepository.findByOrderId(orderId);
+        return toOrderResponse(order, tickets, order.getOrderItems());
     }
 
     // ========== HELPER ==========

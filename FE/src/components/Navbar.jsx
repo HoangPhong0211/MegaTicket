@@ -4,7 +4,20 @@
  */
 import { useState, useRef, useEffect } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
-import { Search, Ticket, LogOut, ShieldCheck, ChevronDown, Menu, X, Calendar } from 'lucide-react'
+import {
+  Search,
+  Ticket,
+  LogOut,
+  ShieldCheck,
+  ChevronDown,
+  Menu,
+  X,
+  Calendar,
+  ShoppingBag,
+  UserCircle,
+  QrCode,
+  ClipboardList,
+} from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 
 export default function Navbar() {
@@ -103,13 +116,29 @@ export default function Navbar() {
               <Calendar size={15} />
               Sự kiện
             </Link>
+            <Link
+              to="/merchandises"
+              className={`navbar-nav-link ${location.pathname.startsWith('/merchandises') ? 'active' : ''}`}
+            >
+              <ShoppingBag size={15} />
+              Vật phẩm
+            </Link>
+            {isLoggedIn && (
+              <Link
+                to="/tickets"
+                className={`navbar-nav-link ${location.pathname.startsWith('/tickets') ? 'active' : ''}`}
+              >
+                <QrCode size={15} />
+                Vé điện tử
+              </Link>
+            )}
             {isLoggedIn && (
               <Link
                 to="/orders"
                 className={`navbar-nav-link ${location.pathname.startsWith('/orders') ? 'active' : ''}`}
               >
-                <Ticket size={15} />
-                Vé của tôi
+                <ClipboardList size={15} />
+                Đơn hàng
               </Link>
             )}
             {isAdmin && (
@@ -138,7 +167,7 @@ export default function Navbar() {
                 </button>
 
                 {menuOpen && (
-                  <div className="dropdown-menu">
+                  <div className="dropdown-menu" style={{ minWidth: 220 }}>
                     <div style={{ padding: '8px 12px 10px' }}>
                       <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)' }}>
                         {user?.fullName}
@@ -156,28 +185,47 @@ export default function Navbar() {
                     <button
                       type="button"
                       className="dropdown-item"
-                      onClick={() => { setMenuOpen(false); navigate('/orders') }}
+                      onClick={() => { setMenuOpen(false); navigate('/profile') }}
                     >
-                      <Ticket size={15} />
-                      Đơn hàng & Vé của tôi
+                      <UserCircle size={15} />
+                      Hồ sơ cá nhân
                     </button>
                     <button
                       type="button"
                       className="dropdown-item"
-                      onClick={() => { setMenuOpen(false); navigate('/events') }}
+                      onClick={() => { setMenuOpen(false); navigate('/tickets') }}
                     >
-                      <Calendar size={15} />
-                      Khám phá sự kiện
+                      <QrCode size={15} />
+                      Vé điện tử của tôi
+                    </button>
+                    <button
+                      type="button"
+                      className="dropdown-item"
+                      onClick={() => { setMenuOpen(false); navigate('/orders') }}
+                    >
+                      <ClipboardList size={15} />
+                      Đơn hàng của tôi
                     </button>
                     {isAdmin && (
-                      <button
-                        type="button"
-                        className="dropdown-item"
-                        onClick={() => { setMenuOpen(false); navigate('/admin') }}
-                      >
-                        <ShieldCheck size={15} />
-                        Trang Quản trị (Admin)
-                      </button>
+                      <>
+                        <div className="dropdown-divider" />
+                        <button
+                          type="button"
+                          className="dropdown-item"
+                          onClick={() => { setMenuOpen(false); navigate('/admin') }}
+                        >
+                          <ShieldCheck size={15} />
+                          Quản trị & Doanh thu
+                        </button>
+                        <button
+                          type="button"
+                          className="dropdown-item"
+                          onClick={() => { setMenuOpen(false); navigate('/admin?tab=checkin') }}
+                        >
+                          <QrCode size={15} />
+                          Soát vé Check-in QR
+                        </button>
+                      </>
                     )}
                     <div className="dropdown-divider" />
                     <button type="button" className="dropdown-item danger" onClick={handleLogout}>
@@ -228,10 +276,18 @@ export default function Navbar() {
             <div className="navbar-mobile-links">
               <Link to="/" className="navbar-mobile-link">Trang chủ</Link>
               <Link to="/events" className="navbar-mobile-link">Tất cả sự kiện</Link>
+              <Link to="/merchandises" className="navbar-mobile-link">Vật phẩm lưu niệm</Link>
               {isLoggedIn ? (
                 <>
-                  <Link to="/orders" className="navbar-mobile-link">Đơn hàng & Vé của tôi</Link>
-                  {isAdmin && <Link to="/admin" className="navbar-mobile-link">Quản trị (Admin)</Link>}
+                  <Link to="/tickets" className="navbar-mobile-link">Vé điện tử của tôi</Link>
+                  <Link to="/orders" className="navbar-mobile-link">Đơn hàng của tôi</Link>
+                  <Link to="/profile" className="navbar-mobile-link">Hồ sơ cá nhân</Link>
+                  {isAdmin && (
+                    <>
+                      <Link to="/admin" className="navbar-mobile-link">Quản trị & Doanh thu</Link>
+                      <Link to="/admin?tab=checkin" className="navbar-mobile-link">Soát vé Check-in QR</Link>
+                    </>
+                  )}
                   <button type="button" className="navbar-mobile-link danger" onClick={handleLogout}>
                     Đăng xuất ({user?.fullName})
                   </button>

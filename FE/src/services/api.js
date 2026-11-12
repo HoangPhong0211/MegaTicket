@@ -28,7 +28,7 @@ function parseErrorMessage(data, status) {
   if (data.message) return data.message
   // Spring MethodArgumentNotValidException trả về map { field: message }
   if (typeof data === 'object') {
-    const messages = Object.values(data).filter(v => typeof v === 'string')
+    const messages = Object.values(data).filter((v) => typeof v === 'string')
     if (messages.length > 0) return messages.join('. ')
   }
   return `Yêu cầu thất bại (${status})`
@@ -89,6 +89,29 @@ export const eventApi = {
     apiFetch(`/api/events/${eventId}/zones/${zoneId}/seats`, { auth: false }),
 }
 
+// ===== Merchandise APIs (Public) =====
+export const merchandiseApi = {
+  getByEvent: (eventId) =>
+    apiFetch(`/api/events/${eventId}/merchandises`, { auth: false }),
+  getById: (id) =>
+    apiFetch(`/api/merchandises/${id}`, { auth: false }),
+}
+
+// ===== Ticket / E-Ticket APIs (Authenticated) =====
+export const ticketApi = {
+  getMyETickets: () => apiFetch('/api/tickets/my'),
+  getByOrder: (orderId) => apiFetch(`/api/tickets/orders/${orderId}`),
+}
+
+// ===== User Profile APIs (Authenticated) =====
+export const userApi = {
+  getMyProfile: () => apiFetch('/api/users/me'),
+  updateMyProfile: (payload) =>
+    apiFetch('/api/users/me', { method: 'PUT', body: payload }),
+  changePassword: (payload) =>
+    apiFetch('/api/users/me/password', { method: 'PUT', body: payload }),
+}
+
 // ===== Order APIs (Authenticated) =====
 export const orderApi = {
   create: (payload) =>
@@ -113,6 +136,7 @@ export const paymentApi = {
 
 // ===== Admin APIs (ROLE_ADMIN) =====
 export const adminApi = {
+  // Sự kiện & Zone
   createEvent: (payload) =>
     apiFetch('/api/admin/events', { method: 'POST', body: payload }),
   addZone: (eventId, payload) =>
@@ -121,5 +145,27 @@ export const adminApi = {
     apiFetch(`/api/admin/events/${id}`, { method: 'PUT', body: payload }),
   deleteEvent: (id) =>
     apiFetch(`/api/admin/events/${id}`, { method: 'DELETE' }),
-  getAllOrders: () => apiFetch('/api/admin/orders'),
+
+  // Vật phẩm (Merchandise)
+  createMerchandise: (eventId, payload) =>
+    apiFetch(`/api/admin/events/${eventId}/merchandises`, { method: 'POST', body: payload }),
+  updateMerchandise: (id, payload) =>
+    apiFetch(`/api/admin/merchandises/${id}`, { method: 'PUT', body: payload }),
+  deleteMerchandise: (id) =>
+    apiFetch(`/api/admin/merchandises/${id}`, { method: 'DELETE' }),
+
+  // Soát vé / Check-in QR
+  checkInTicket: (ticketCode) =>
+    apiFetch('/api/admin/tickets/check-in', {
+      method: 'POST',
+      body: { ticketCode },
+    }),
+  getEventCheckInStats: (eventId) =>
+    apiFetch(`/api/admin/events/${eventId}/check-in-stats`),
+
+  // Đơn hàng & Doanh thu
+  getAllOrders: (status) =>
+    apiFetch(status ? `/api/admin/orders?status=${encodeURIComponent(status)}` : '/api/admin/orders'),
+  getOrderDetail: (id) => apiFetch(`/api/admin/orders/${id}`),
+  getRevenueStats: () => apiFetch('/api/admin/revenue'),
 }

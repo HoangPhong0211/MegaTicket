@@ -1,5 +1,14 @@
 package com.example.demo.service;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.UUID;
+import java.util.stream.Collectors;
+
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.CollectionUtils;
+
 import com.example.demo.dto.request.EventRequest;
 import com.example.demo.dto.request.SeatZoneRequest;
 import com.example.demo.dto.response.EventResponse;
@@ -14,16 +23,9 @@ import com.example.demo.repository.EventRepository;
 import com.example.demo.repository.MerchandiseRepository;
 import com.example.demo.repository.SeatZoneRepository;
 import com.example.demo.repository.TicketRepository;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-import org.springframework.util.CollectionUtils;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.UUID;
-import java.util.stream.Collectors;
 
 /**
  * Service xử lý nghiệp vụ Sự kiện (Event).

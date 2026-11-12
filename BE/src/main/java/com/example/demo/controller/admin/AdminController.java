@@ -1,11 +1,12 @@
 package com.example.demo.controller.admin;
 
+import com.example.demo.dto.request.CheckInRequest;
 import com.example.demo.dto.request.EventRequest;
+import com.example.demo.dto.request.MerchandiseRequest;
 import com.example.demo.dto.request.SeatZoneRequest;
-import com.example.demo.dto.response.EventResponse;
-import com.example.demo.dto.response.OrderResponse;
-import com.example.demo.service.EventService;
-import com.example.demo.service.OrderService;
+import com.example.demo.dto.response.*;
+import com.example.demo.entity.enums.OrderStatus;
+import com.example.demo.service.*;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -23,22 +24,21 @@ import java.util.UUID;
  * Bảo vệ 2 lớp:
  * 1. SecurityConfig: .requestMatchers("/api/admin/**").hasRole("ADMIN")
  * 2. @PreAuthorize("hasRole('ADMIN')"): annotation trên method (defense-in-depth)
- *
- * Gom Admin API vào package/controller riêng giúp:
- * - Dễ audit các endpoint nhạy cảm
- * - Dễ thêm logging/rate-limiting riêng cho Admin sau này
  */
 @RestController
 @RequestMapping("/api/admin")
 @RequiredArgsConstructor
 @CrossOrigin(origins = "*")
-@PreAuthorize("hasRole('ADMIN')") // Áp dụng cho toàn bộ controller
+@PreAuthorize("hasRole('ADMIN')")
 public class AdminController {
 
     private final EventService eventService;
     private final OrderService orderService;
+    private final TicketService ticketService;
+    private final MerchandiseService merchandiseService;
+    private final AdminStatsService adminStatsService;
 
-    // ===== QUẢN LÝ SỰ KIỆN =====
+    // ===== QUẢN LÝ SỰ KIỆN & SƠ ĐỒ GHẾ =====
 
     /** Tạo sự kiện mới (kèm danh sách zones) */
     @PostMapping("/events")
@@ -69,11 +69,64 @@ public class AdminController {
         return ResponseEntity.noContent().build();
     }
 
-    // ===== QUẢN LÝ ĐƠN HÀNG =====
+    // ===== QUẢN LÝ VẬT PHẨM (MERCHANDISE) =====
 
-    /** Xem tất cả đơn hàng trong hệ thống */
+    /** Thêm vật phẩm lưu niệm cho sự kiện */
+    @PostMapping("/events/{eventId}/merchandises")
+    public ResponseEntity<MerchandiseResponse> createMerchandise(
+            @PathVariable UUID eventId,
+            @Valid @RequestBody MerchandiseRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(merchandiseService.createMerchandise(eventId, request));
+    }
+
+    /** Cập nhật vật phẩm lưu niệm */
+    @PutMapping("/merchandises/{id}")
+    public ResponseEntity<MerchandiseResponse> updateMerchandise(
+            @PathVariable UUID id,
+            @Valid @RequestBody MerchandiseRequest request) {
+        return ResponseEntity.ok(merchandiseService.updateMerchandise(id, request));
+    }
+
+    /** Xóa vật phẩm lưu niệm (chỉ khi chưa phát sinh đơn hàng) */
+    @DeleteMapping("/merchandises/{id}")
+    public ResponseEntity<Void> deleteMerchandise(@PathVariable UUID id) {
+        merchandiseService.deleteMerchandise(id);
+        return ResponseEntity.noContent().build();
+    }
+
+    // ===== SOÁT VÉ / CHECK-IN QR =====
+
+    /** Soát vé tại cổng bằng mã QR (ticketCode) */
+    @PostMapping("/tickets/check-in")
+    public ResponseEntity<CheckInResponse> checkInTicket(@Valid @RequestBody CheckInRequest request) {
+        return ResponseEntity.ok(ticketService.checkInByTicketCode(request.getTicketCode()));
+    }
+
+    /** Thống kê tiến độ check-in của một sự kiện */
+    @GetMapping("/events/{eventId}/check-in-stats")
+    public ResponseEntity<EventCheckInStatsResponse> getEventCheckInStats(@PathVariable UUID eventId) {
+        return ResponseEntity.ok(ticketService.getEventCheckInStats(eventId));
+    }
+
+    // ===== QUẢN LÝ ĐƠN HÀNG & DOANH THU =====
+
+    /** Xem tất cả đơn hàng trong hệ thống (có thể lọc ?status=PAID|PENDING|CANCELLED) */
     @GetMapping("/orders")
-    public ResponseEntity<List<OrderResponse>> getAllOrders() {
-        return ResponseEntity.ok(orderService.getAllOrders());
+    public ResponseEntity<List<OrderResponse>> getAllOrders(
+            @RequestParam(required = false) OrderStatus status) {
+        return ResponseEntity.ok(orderService.getAllOrders(status));
+    }
+
+    /** Xem chi tiết bất kỳ đơn hàng nào */
+    @GetMapping("/orders/{id}")
+    public ResponseEntity<OrderResponse> getOrderDetail(@PathVariable UUID id) {
+        return ResponseEntity.ok(orderService.getOrderByIdForAdmin(id));
+    }
+
+    /** Thống kê doanh thu & số liệu đơn hàng toàn hệ thống và theo sự kiện */
+    @GetMapping("/revenue")
+    public ResponseEntity<RevenueStatsResponse> getRevenueStats() {
+        return ResponseEntity.ok(adminStatsService.getRevenueStats());
     }
 }
