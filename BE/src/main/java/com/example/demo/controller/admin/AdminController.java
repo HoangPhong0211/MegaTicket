@@ -54,6 +54,24 @@ public class AdminController {
         return ResponseEntity.ok(eventService.addZoneToEvent(eventId, request));
     }
 
+    /** Cập nhật khu vực ghế */
+    @PutMapping("/events/{eventId}/zones/{zoneId}")
+    public ResponseEntity<EventResponse> updateZone(
+            @PathVariable UUID eventId,
+            @PathVariable UUID zoneId,
+            @Valid @RequestBody SeatZoneRequest request) {
+        return ResponseEntity.ok(eventService.updateZone(eventId, zoneId, request));
+    }
+
+    /** Xóa khu vực ghế */
+    @DeleteMapping("/events/{eventId}/zones/{zoneId}")
+    public ResponseEntity<Void> deleteZone(
+            @PathVariable UUID eventId,
+            @PathVariable UUID zoneId) {
+        eventService.deleteZone(eventId, zoneId);
+        return ResponseEntity.noContent().build();
+    }
+
     /** Cập nhật sự kiện */
     @PutMapping("/events/{id}")
     public ResponseEntity<EventResponse> updateEvent(

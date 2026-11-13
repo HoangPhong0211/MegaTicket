@@ -143,6 +143,9 @@ public class SecurityConfig {
                     // Public: webhook từ VietQR server (không có JWT, phải mở public)
                     .requestMatchers("/api/payments/webhook").permitAll()
 
+                    // Public: Chatbot CSKH Gemini AI (cho phép cả khách vãng lai & user đã đăng nhập)
+                    .requestMatchers("/api/chat/**").permitAll()
+
                     // Admin only: quản lý sự kiện, đơn hàng, check-in
                     .requestMatchers("/api/admin/**").hasRole("ADMIN")
 

@@ -25,6 +25,8 @@ import {
   QrCode,
   ShoppingBag,
   Eye,
+  Clock,
+  Activity,
 } from 'lucide-react'
 import Navbar from '../components/Navbar'
 import Footer from '../components/Footer'
@@ -38,6 +40,7 @@ import {
   formatCurrency,
   formatDateTime,
   getShortId,
+  getEventTimePhaseInfo,
 } from '../utils/format'
 
 const ADMIN_TABS = [
@@ -78,6 +81,7 @@ export default function AdminPage() {
   const [zoneModalEvent, setZoneModalEvent] = useState(null)
   const [deleteConfirmId, setDeleteConfirmId] = useState(null)
   const [inspectOrder, setInspectOrder] = useState(null)
+  const [cronSyncSec, setCronSyncSec] = useState(60)
 
   useEffect(() => {
     const tab = searchParams.get('tab')
@@ -96,8 +100,8 @@ export default function AdminPage() {
     setTimeout(() => setToast(''), 3000)
   }
 
-  const loadData = useCallback(async () => {
-    setLoading(true)
+  const loadData = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true)
     setError('')
     try {
       const [evList, ordList, revData] = await Promise.all([
@@ -108,15 +112,30 @@ export default function AdminPage() {
       setEvents(Array.isArray(evList) ? evList : [])
       setOrders(Array.isArray(ordList) ? ordList : [])
       setRevenueStats(revData)
+      setCronSyncSec(60)
     } catch (err) {
-      setError(err.message || 'Không thể tải dữ liệu quản trị.')
+      if (!silent) setError(err.message || 'Không thể tải dữ liệu quản trị.')
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
   }, [orderStatusFilter])
 
   useEffect(() => {
     loadData()
+  }, [loadData])
+
+  // Đếm ngược & tự động đồng bộ mỗi 60s khớp với Cronjob EventService.syncEventStatuses()
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCronSyncSec((sec) => {
+        if (sec <= 1) {
+          loadData(true)
+          return 60
+        }
+        return sec - 1
+      })
+    }, 1000)
+    return () => clearInterval(timer)
   }, [loadData])
 
   async function handleInspectOrder(orderId) {
@@ -223,21 +242,57 @@ export default function AdminPage() {
           ) : activeTab === 'merchandises' ? (
             <AdminMerchandisePanel events={events} onToast={showToast} />
           ) : activeTab === 'events' ? (
-            <div className="admin-events-list">
-              {events.map((ev) => {
-                const stMeta = EVENT_STATUS_META[ev.status] || EVENT_STATUS_META.UPCOMING
-                return (
-                  <div key={ev.id} className="admin-event-card">
-                    <div className="admin-event-main">
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 6 }}>
-                        <h3 className="admin-event-title">{ev.name}</h3>
-                        <span className={`badge ${stMeta.cls}`}>{stMeta.shortLabel}</span>
-                      </div>
-                      <div className="admin-event-meta">
-                        <span>{ev.location}</span>
-                        <span>·</span>
-                        <span>Bắt đầu: {formatDateTime(ev.startTime)}</span>
-                      </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {/* Cronjob Status Monitor Banner */}
+              <div className="cron-monitor-bar">
+                <div className="cron-monitor-left">
+                  <div className="cron-monitor-icon">
+                    <Activity size={18} />
+                  </div>
+                  <div>
+                    <div className="cron-monitor-title">
+                      Cronjob Trạng thái Sự kiện tự động (<code>@Scheduled 60s</code>)
+                    </div>
+                    <div className="cron-monitor-sub">
+                      Tự chuyển <strong>UPCOMING → ONGOING</strong> khi đến giờ bắt đầu và <strong>→ ENDED</strong> khi hết giờ kết thúc · Đồng bộ UI sau <strong>{cronSyncSec}s</strong>
+                    </div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="btn btn-outline"
+                  style={{ padding: '7px 14px', fontSize: 12 }}
+                  onClick={() => loadData(true)}
+                >
+                  <RefreshCw size={13} />
+                  Đồng bộ ngay
+                </button>
+              </div>
+
+              <div className="admin-events-list">
+                {events.map((ev) => {
+                  const stMeta = EVENT_STATUS_META[ev.status] || EVENT_STATUS_META.UPCOMING
+                  const phaseInfo = getEventTimePhaseInfo(ev)
+                  return (
+                    <div key={ev.id} className="admin-event-card">
+                      <div className="admin-event-main">
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 6 }}>
+                          <h3 className="admin-event-title">{ev.name}</h3>
+                          <span className={`badge ${stMeta.cls}`}>{stMeta.shortLabel}</span>
+                          {phaseInfo.isSyncPending && (
+                            <span className="badge cron-pending-badge">
+                              <Clock size={11} />
+                              Chờ Cronjob → {phaseInfo.expectedStatus}
+                            </span>
+                          )}
+                        </div>
+                        <div className="admin-event-meta">
+                          <span>{ev.location}</span>
+                          <span>·</span>
+                          <span>Bắt đầu: {formatDateTime(ev.startTime)}</span>
+                          <span>·</span>
+                          <span>Kết thúc: {formatDateTime(ev.endTime)}</span>
+                        </div>
 
                       {/* Zones pills */}
                       <div className="admin-zones-row">
@@ -313,6 +368,7 @@ export default function AdminPage() {
                   </div>
                 )
               })}
+              </div>
             </div>
           ) : (
             /* Orders Table with Status Filter */
@@ -632,6 +688,9 @@ function EventFormModal({ mode, event, onClose, onSaved }) {
                 <option value="ONGOING">ONGOING (Đang diễn ra)</option>
                 <option value="ENDED">ENDED (Đã kết thúc)</option>
               </select>
+              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                Lưu ý: Cronjob trên server tự động đối chiếu startTime / endTime mỗi 60 giây để cập nhật trạng thái thực tế.
+              </span>
             </div>
           )}
 

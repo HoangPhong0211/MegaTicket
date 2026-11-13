@@ -5,8 +5,8 @@
  * status: UPCOMING | ONGOING | ENDED
  */
 import { Link } from 'react-router-dom'
-import { MapPin, Ticket } from 'lucide-react'
-import { EVENT_STATUS_META, formatCurrency } from '../utils/format'
+import { MapPin, Ticket, Clock } from 'lucide-react'
+import { EVENT_STATUS_META, formatCurrency, getEventTimePhaseInfo } from '../utils/format'
 
 const GRADIENTS = [
   'linear-gradient(135deg, #1a0a2e, #2d1b69)',
@@ -41,6 +41,7 @@ export default function EventCard({ event, index = 0 }) {
   const totalAvailable = Array.isArray(seatZones)
     ? seatZones.reduce((sum, z) => sum + (z.availableSeats ?? 0), 0)
     : null
+  const phaseInfo = getEventTimePhaseInfo(event)
 
   return (
     <Link to={`/events/${id}`} className="event-card">
@@ -80,6 +81,13 @@ export default function EventCard({ event, index = 0 }) {
             <span>
               {totalAvailable > 0 ? `Còn ${totalAvailable} vé` : 'Tạm hết vé'}
             </span>
+          </div>
+        )}
+
+        {phaseInfo.timeHint && (
+          <div className="event-card-seats" style={{ color: status === 'ONGOING' ? 'var(--success)' : 'var(--text-muted)' }}>
+            <Clock size={12} />
+            <span className="truncate">{phaseInfo.timeHint}</span>
           </div>
         )}
 

@@ -80,22 +80,27 @@ export default function HomePage() {
   const [isDemoMode, setIsDemoMode] = useState(false)
   const [activeCategory, setActiveCategory] = useState('all')
 
-  const fetchEvents = useCallback(async () => {
-    setLoading(true)
+  const fetchEvents = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true)
     try {
       const data = await eventApi.getAll()
       setEvents(Array.isArray(data) ? data : [])
       setIsDemoMode(false)
     } catch {
-      setEvents(MOCK_EVENTS)
-      setIsDemoMode(true)
+      if (!silent) {
+        setEvents(MOCK_EVENTS)
+        setIsDemoMode(true)
+      }
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
   }, [])
 
   useEffect(() => {
     fetchEvents()
+    // Đồng bộ định kỳ mỗi 60s khớp với @Scheduled(fixedDelay = 60_000) trên BE
+    const timer = setInterval(() => fetchEvents(true), 60_000)
+    return () => clearInterval(timer)
   }, [fetchEvents])
 
   const filteredEvents = useMemo(() => {

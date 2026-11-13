@@ -13,6 +13,7 @@ import AdminPage from './pages/AdminPage'
 import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
 import ProtectedRoute from './components/ProtectedRoute'
+import ChatbotWidget from './components/ChatbotWidget'
 import { AuthProvider } from './context/AuthContext'
 
 function App() {
@@ -72,6 +73,7 @@ function App() {
           {/* Redirect unknown routes về trang chủ */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        <ChatbotWidget />
       </BrowserRouter>
     </AuthProvider>
   )

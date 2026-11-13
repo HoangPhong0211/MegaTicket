@@ -69,6 +69,12 @@
 			<version>0.12.6</version>
 			<scope>runtime</scope>
 		</dependency>
+		<!-- Google Gen AI Java SDK (Gemini API) -->
+		<dependency>
+			<groupId>com.google.genai</groupId>
+			<artifactId>google-genai</artifactId>
+			<version>1.80.0</version>
+		</dependency>
 
 		<dependency>
 			<groupId>org.postgresql</groupId>

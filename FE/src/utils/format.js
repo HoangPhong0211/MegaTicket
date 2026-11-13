@@ -103,3 +103,48 @@ export const ORDER_STATUS_META = {
     label: 'Đã hủy',
   },
 }
+
+
+/**
+ * Tính toán thông tin tiến trình thời gian thực của sự kiện để hiển thị kèm Cronjob 60s
+ */
+export function getEventTimePhaseInfo(event, nowMs = Date.now()) {
+  if (!event?.startTime || !event?.endTime) {
+    return { expectedStatus: event?.status || 'UPCOMING', timeHint: '', isSyncPending: false }
+  }
+  const startMs = new Date(event.startTime).getTime()
+  const endMs = new Date(event.endTime).getTime()
+  if (Number.isNaN(startMs) || Number.isNaN(endMs)) {
+    return { expectedStatus: event.status || 'UPCOMING', timeHint: '', isSyncPending: false }
+  }
+
+  let expectedStatus = 'UPCOMING'
+  let timeHint = ''
+
+  const formatDiff = (ms) => {
+    const totalMins = Math.max(1, Math.floor(ms / 60000))
+    const days = Math.floor(totalMins / (60 * 24))
+    const hours = Math.floor((totalMins % (60 * 24)) / 60)
+    const mins = totalMins % 60
+    if (days > 0) return `${days} ngày ${hours} giờ`
+    if (hours > 0) return `${hours} giờ ${mins} phút`
+    return `${mins} phút`
+  }
+
+  if (nowMs >= endMs) {
+    expectedStatus = 'ENDED'
+    timeHint = 'Sự kiện đã kết thúc'
+  } else if (nowMs >= startMs) {
+    expectedStatus = 'ONGOING'
+    timeHint = `Đang diễn ra · Còn ${formatDiff(endMs - nowMs)} kết thúc`
+  } else {
+    expectedStatus = 'UPCOMING'
+    timeHint = `Bắt đầu sau ${formatDiff(startMs - nowMs)}`
+  }
+
+  const isSyncPending =
+    (expectedStatus === 'ENDED' && event.status !== 'ENDED') ||
+    (expectedStatus === 'ONGOING' && event.status === 'UPCOMING')
+
+  return { expectedStatus, timeHint, isSyncPending }
+}

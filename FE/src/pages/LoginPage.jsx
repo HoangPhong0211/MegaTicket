@@ -6,6 +6,7 @@
 import { useState } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import InfoModal from '../components/InfoModal'
 
 export default function LoginPage() {
   const navigate = useNavigate()
@@ -17,6 +18,7 @@ export default function LoginPage() {
   const [serverError, setServerError] = useState('')
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
+  const [showForgotModal, setShowForgotModal] = useState(false)
 
   // Redirect về trang trước đó sau khi đăng nhập (nếu có)
   const from = location.state?.from?.pathname || '/'
@@ -120,7 +122,21 @@ export default function LoginPage() {
           <div className="form-group">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <label htmlFor="password">Mật khẩu</label>
-              <a href="#" style={{ fontSize: '12px', color: 'var(--primary)' }}>Quên mật khẩu?</a>
+              <button
+                type="button"
+                onClick={() => setShowForgotModal(true)}
+                style={{
+                  fontSize: '12px',
+                  color: 'var(--primary)',
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  padding: 0,
+                  textDecoration: 'underline'
+                }}
+              >
+                Quên mật khẩu?
+              </button>
             </div>
             <div className="input-wrapper">
               <input
@@ -189,6 +205,30 @@ export default function LoginPage() {
           <Link to="/register">Đăng ký ngay</Link>
         </p>
       </div>
+
+      <InfoModal
+        isOpen={showForgotModal}
+        onClose={() => setShowForgotModal(false)}
+        title="Hướng dẫn khôi phục mật khẩu"
+      >
+        <p style={{ marginBottom: 12 }}>
+          Hệ thống khôi phục mật khẩu tự động qua email đang được đồng bộ với máy chủ bảo mật.
+        </p>
+        <p style={{ marginBottom: 12 }}>
+          Nếu bạn quên mật khẩu hoặc không thể đăng nhập, vui lòng thực hiện một trong các cách sau:
+        </p>
+        <ul style={{ paddingLeft: 20, marginBottom: 12 }}>
+          <li style={{ marginBottom: 6 }}>
+            Gửi email đến bộ phận CSKH: <strong style={{ color: 'var(--text)' }}>support@megaticket.vn</strong> kèm theo số điện thoại đã đăng ký.
+          </li>
+          <li style={{ marginBottom: 6 }}>
+            Liên hệ hotline trực ban kỹ thuật: <strong style={{ color: 'var(--primary)' }}>1900 6868</strong> (8h00 - 22h00).
+          </li>
+          <li>
+            Với tài khoản dùng thử / demo: mật khẩu mặc định là <code style={{ color: 'var(--accent)' }}>admin123</code> (dành cho Quản trị viên).
+          </li>
+        </ul>
+      </InfoModal>
     </div>
   )
 }

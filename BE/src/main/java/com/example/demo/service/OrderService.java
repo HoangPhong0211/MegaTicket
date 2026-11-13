@@ -14,6 +14,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -282,7 +284,7 @@ public class OrderService {
      * - Order: PENDING → CANCELLED
      * - Redis: xóa key
      */
-    private void releaseOrderResources(Order order) {
+    void releaseOrderResources(Order order) {
         // Giải phóng vé
         List<Ticket> tickets = ticketRepository.findByOrderId(order.getId());
         tickets.forEach(t -> {
@@ -342,10 +344,18 @@ public class OrderService {
      * Phương thức này cũng được PaymentService gọi sau khi thanh toán thành công.
      */
     public OrderResponse toOrderResponse(Order order, List<Ticket> tickets, List<OrderItem> items) {
+        // Chỉ để lộ ticketCode nếu đơn hàng đã PAID hoặc người xem là ADMIN
+        boolean isPrivileged = false;
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null && auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"))) {
+            isPrivileged = true;
+        }
+        boolean showTicketCode = (order.getStatus() == OrderStatus.PAID) || isPrivileged;
+
         List<OrderResponse.TicketInfo> ticketInfos = tickets.stream()
                 .map(t -> OrderResponse.TicketInfo.builder()
                         .ticketId(t.getId())
-                        .ticketCode(t.getTicketCode())
+                        .ticketCode(showTicketCode ? t.getTicketCode() : null)
                         .seatNumber(t.getSeatNumber())
                         .zoneName(t.getZone().getName())
                         .price(t.getPrice())

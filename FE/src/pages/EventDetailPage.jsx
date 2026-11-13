@@ -28,7 +28,7 @@ import Navbar from '../components/Navbar'
 import Footer from '../components/Footer'
 import { useAuth } from '../context/AuthContext'
 import { eventApi, orderApi } from '../services/api'
-import { EVENT_STATUS_META, formatCurrency, formatDateRange } from '../utils/format'
+import { EVENT_STATUS_META, formatCurrency, formatDateRange, getEventTimePhaseInfo } from '../utils/format'
 
 const MAX_TICKETS_PER_ZONE = 10
 
@@ -56,8 +56,8 @@ export default function EventDetailPage() {
   const [orderError, setOrderError] = useState('')
   const [seatWarning, setSeatWarning] = useState('')
 
-  const loadEvent = useCallback(async () => {
-    setLoading(true)
+  const loadEvent = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true)
     setError('')
     try {
       const data = await eventApi.getById(id)
@@ -70,14 +70,17 @@ export default function EventDetailPage() {
         })
       }
     } catch (err) {
-      setError(err.message || 'Không thể tải thông tin sự kiện.')
+      if (!silent) setError(err.message || 'Không thể tải thông tin sự kiện.')
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
   }, [id])
 
   useEffect(() => {
     loadEvent()
+    // Đồng bộ định kỳ mỗi 60s khớp với Cronjob trạng thái sự kiện trên BE
+    const timer = setInterval(() => loadEvent(true), 60_000)
+    return () => clearInterval(timer)
   }, [loadEvent])
 
   const loadZoneSeats = useCallback(async (zoneId) => {
@@ -383,6 +386,7 @@ export default function EventDetailPage() {
   }
 
   const statusInfo = EVENT_STATUS_META[event.status] || EVENT_STATUS_META.UPCOMING
+  const phaseInfo = getEventTimePhaseInfo(event)
   const isEnded = event.status === 'ENDED'
   const minPrice = event.seatZones?.length
     ? Math.min(...event.seatZones.map((z) => Number(z.price) || 0))
@@ -428,6 +432,12 @@ export default function EventDetailPage() {
                   <MapPin size={16} />
                   <span>{event.location}</span>
                 </div>
+                {phaseInfo.timeHint && (
+                  <div className="event-detail-meta-item">
+                    <Clock size={16} />
+                    <span>{phaseInfo.timeHint}</span>
+                  </div>
+                )}
               </div>
             </div>
           </div>

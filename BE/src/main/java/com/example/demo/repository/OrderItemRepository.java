@@ -16,6 +16,8 @@ public interface OrderItemRepository extends JpaRepository<OrderItem, UUID> {
 
     boolean existsByMerchandiseId(UUID merchandiseId);
 
+    boolean existsByMerchandiseEventId(UUID eventId);
+
     @Query("""
             SELECT SUM(oi.price * oi.quantity)
             FROM OrderItem oi

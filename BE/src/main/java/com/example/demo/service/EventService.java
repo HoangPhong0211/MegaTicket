@@ -1,10 +1,12 @@
 package com.example.demo.service;
 
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
@@ -17,10 +19,12 @@ import com.example.demo.entity.Event;
 import com.example.demo.entity.Merchandise;
 import com.example.demo.entity.SeatZone;
 import com.example.demo.entity.Ticket;
+import com.example.demo.entity.enums.EventStatus;
 import com.example.demo.entity.enums.TicketStatus;
 import com.example.demo.exception.BusinessException;
 import com.example.demo.repository.EventRepository;
 import com.example.demo.repository.MerchandiseRepository;
+import com.example.demo.repository.OrderItemRepository;
 import com.example.demo.repository.SeatZoneRepository;
 import com.example.demo.repository.TicketRepository;
 
@@ -45,6 +49,7 @@ public class EventService {
     private final SeatZoneRepository seatZoneRepository;
     private final TicketRepository ticketRepository;
     private final MerchandiseRepository merchandiseRepository;
+    private final OrderItemRepository orderItemRepository;
 
     // ========== PUBLIC APIS ==========
 
@@ -147,6 +152,86 @@ public class EventService {
     }
 
     /**
+     * Cập nhật khu vực ghế (SeatZone).
+     */
+    @Transactional
+    public EventResponse updateZone(UUID eventId, UUID zoneId, SeatZoneRequest request) {
+        Event event = eventRepository.findById(eventId)
+                .orElseThrow(() -> new BusinessException("Không tìm thấy sự kiện với ID: " + eventId));
+
+        SeatZone zone = seatZoneRepository.findById(zoneId)
+                .orElseThrow(() -> new BusinessException("Không tìm thấy khu vực ghế ID: " + zoneId));
+
+        if (!zone.getEvent().getId().equals(eventId)) {
+            throw new BusinessException("Khu vực ghế không thuộc sự kiện này.");
+        }
+
+        zone.setName(request.getName().trim());
+        zone.setPrice(request.getPrice());
+
+        // Cập nhật giá trên các vé AVAILABLE chưa bán của zone
+        List<Ticket> availableTickets = ticketRepository.findByZoneIdAndStatus(zoneId, TicketStatus.AVAILABLE);
+        for (Ticket t : availableTickets) {
+            t.setPrice(request.getPrice());
+        }
+        ticketRepository.saveAll(availableTickets);
+
+        // Nếu tăng totalSeats, sinh thêm vé bổ sung
+        if (request.getTotalSeats() > zone.getTotalSeats()) {
+            int currentTotal = zone.getTotalSeats();
+            boolean isGA = zone.getName().toUpperCase().contains("GA");
+            String zonePrefix = zone.getName().replaceAll("[^a-zA-Z0-9]", "").toUpperCase();
+            if (zonePrefix.isEmpty()) zonePrefix = "ZONE";
+            if (zonePrefix.length() > 6) zonePrefix = zonePrefix.substring(0, 6);
+            String zoneSuffix = zone.getId().toString().replace("-", "").substring(0, 6).toUpperCase();
+
+            List<Ticket> additional = new ArrayList<>();
+            for (int i = currentTotal + 1; i <= request.getTotalSeats(); i++) {
+                additional.add(Ticket.builder()
+                        .zone(zone)
+                        .ticketCode(String.format("MT-%s-%s-%04d", zonePrefix, zoneSuffix, i))
+                        .seatNumber(isGA ? null : zone.getName() + "-" + i)
+                        .price(zone.getPrice())
+                        .status(TicketStatus.AVAILABLE)
+                        .isCheckedIn(false)
+                        .build());
+            }
+            ticketRepository.saveAll(additional);
+            zone.setTotalSeats(request.getTotalSeats());
+        }
+
+        seatZoneRepository.save(zone);
+        log.info("Đã cập nhật zone '{}' của sự kiện '{}'", zone.getName(), event.getName());
+        return toEventResponse(event);
+    }
+
+    /**
+     * Xóa khu vực ghế (chỉ khi chưa có vé nào được đặt).
+     */
+    @Transactional
+    public EventResponse deleteZone(UUID eventId, UUID zoneId) {
+        Event event = eventRepository.findById(eventId)
+                .orElseThrow(() -> new BusinessException("Không tìm thấy sự kiện với ID: " + eventId));
+
+        SeatZone zone = seatZoneRepository.findById(zoneId)
+                .orElseThrow(() -> new BusinessException("Không tìm thấy khu vực ghế ID: " + zoneId));
+
+        if (!zone.getEvent().getId().equals(eventId)) {
+            throw new BusinessException("Khu vực ghế không thuộc sự kiện này.");
+        }
+
+        if (ticketRepository.existsByZoneIdAndOrderIsNotNull(zoneId)
+                || ticketRepository.existsByZoneIdAndStatusNot(zoneId, TicketStatus.AVAILABLE)) {
+            throw new BusinessException("Không thể xóa khu vực đã phát sinh vé được đặt hoặc đã bán.");
+        }
+
+        ticketRepository.deleteByZoneId(zoneId);
+        seatZoneRepository.delete(zone);
+        log.info("Đã xóa zone ID: {} của sự kiện '{}'", zoneId, event.getName());
+        return toEventResponse(event);
+    }
+
+    /**
      * Cập nhật thông tin sự kiện (không thay đổi zones).
      */
     @Transactional
@@ -174,15 +259,58 @@ public class EventService {
     }
 
     /**
-     * Xóa sự kiện (cascade xóa zones và tickets theo DB schema).
+     * Xóa sự kiện (chỉ khi chưa có đơn hàng đặt vé hoặc mua vật phẩm).
      */
     @Transactional
     public void deleteEvent(UUID id) {
-        if (!eventRepository.existsById(id)) {
-            throw new BusinessException("Không tìm thấy sự kiện với ID: " + id);
+        Event event = eventRepository.findById(id)
+                .orElseThrow(() -> new BusinessException("Không tìm thấy sự kiện với ID: " + id));
+
+        if (ticketRepository.existsByZoneEventIdAndOrderIsNotNull(id)
+                || ticketRepository.existsByZoneEventIdAndStatusNot(id, TicketStatus.AVAILABLE)) {
+            throw new BusinessException("Không thể xóa sự kiện đã phát sinh đơn hàng hoặc có vé đã bán/đang giữ chỗ.");
         }
-        eventRepository.deleteById(id);
-        log.info("Đã xóa sự kiện ID: {}", id);
+
+        if (orderItemRepository.existsByMerchandiseEventId(id)) {
+            throw new BusinessException("Không thể xóa sự kiện vì có vật phẩm đã phát sinh đơn hàng.");
+        }
+
+        ticketRepository.deleteByZoneEventId(id);
+        merchandiseRepository.deleteByEventId(id);
+        seatZoneRepository.deleteByEventId(id);
+        eventRepository.delete(event);
+        log.info("Đã xóa sự kiện ID: {} ('{}')", id, event.getName());
+    }
+
+    /**
+     * Cronjob tự động cập nhật trạng thái sự kiện theo startTime / endTime (theo ERD).
+     * - UPCOMING → ONGOING khi đã qua startTime và chưa qua endTime
+     * - UPCOMING / ONGOING → ENDED khi đã qua endTime
+     */
+    @Scheduled(fixedDelay = 60_000)
+    @Transactional
+    public void syncEventStatuses() {
+        OffsetDateTime now = OffsetDateTime.now();
+        List<Event> events = eventRepository.findAll();
+        List<Event> updated = new ArrayList<>();
+
+        for (Event event : events) {
+            EventStatus targetStatus = event.getStatus();
+            if (!now.isBefore(event.getEndTime())) {
+                targetStatus = EventStatus.ENDED;
+            } else if (!now.isBefore(event.getStartTime())) {
+                targetStatus = EventStatus.ONGOING;
+            }
+            if (targetStatus != event.getStatus()) {
+                event.setStatus(targetStatus);
+                updated.add(event);
+            }
+        }
+
+        if (!updated.isEmpty()) {
+            eventRepository.saveAll(updated);
+            log.info("Cronjob đã cập nhật trạng thái cho {} sự kiện.", updated.size());
+        }
     }
 
     // ========== PRIVATE HELPERS ==========

@@ -40,7 +40,11 @@ public class DataInitializer implements CommandLineRunner {
                     log.info("Đã cập nhật lại password_hash BCrypt cho admin@megaticket.vn.");
                 }
             });
-            log.info("Dữ liệu mẫu đã tồn tại, bỏ qua bước khởi tạo (seeding).");
+
+            // Tự động đồng bộ số lượng vé nếu các zone còn thiếu vé
+            syncMissingTicketsForZones();
+
+            log.info("Dữ liệu mẫu đã tồn tại, hoàn tất kiểm tra và đồng bộ.");
             return;
         }
 
@@ -85,14 +89,24 @@ public class DataInitializer implements CommandLineRunner {
                 .build();
         seatZoneRepository.save(gaZone);
 
-        // 4. Sinh sẵn vé cho khu vực VIP A (Ticket Lifecycle: AVAILABLE)
+        // 4. Sinh đủ vé cho khu vực VIP A và GA B (Ticket Lifecycle: AVAILABLE)
         List<Ticket> sampleTickets = new ArrayList<>();
-        for (int i = 1; i <= 5; i++) {
+        for (int i = 1; i <= 10; i++) {
             sampleTickets.add(Ticket.builder()
                     .zone(vipZone)
                     .ticketCode(String.format("TICK-2026-VIP-%03d", i))
                     .seatNumber("VIP-A-" + i)
                     .price(vipZone.getPrice())
+                    .status(TicketStatus.AVAILABLE)
+                    .isCheckedIn(false)
+                    .build());
+        }
+        for (int i = 1; i <= 50; i++) {
+            sampleTickets.add(Ticket.builder()
+                    .zone(gaZone)
+                    .ticketCode(String.format("TICK-2026-GA-%03d", i))
+                    .seatNumber(null)
+                    .price(gaZone.getPrice())
                     .status(TicketStatus.AVAILABLE)
                     .isCheckedIn(false)
                     .build());
@@ -109,6 +123,35 @@ public class DataInitializer implements CommandLineRunner {
                 .build();
         merchandiseRepository.save(shirt);
 
-        log.info("Đã khởi tạo thành công: 1 Admin, 1 Event, 2 SeatZones, 5 Tickets, 1 Merchandise!");
+        log.info("Đã khởi tạo thành công: 1 Admin, 1 Event, 2 SeatZones, 60 Tickets, 1 Merchandise!");
+    }
+
+    private void syncMissingTicketsForZones() {
+        List<SeatZone> zones = seatZoneRepository.findAll();
+        for (SeatZone zone : zones) {
+            long existingCount = ticketRepository.countByZoneId(zone.getId());
+            if (existingCount < zone.getTotalSeats()) {
+                int toCreate = zone.getTotalSeats() - (int) existingCount;
+                log.info("Bổ sung {} vé còn thiếu cho khu vực {} (tổng: {})", toCreate, zone.getName(), zone.getTotalSeats());
+                List<Ticket> newTickets = new ArrayList<>();
+                boolean isStanding = zone.getName().toLowerCase().contains("ga") || zone.getName().toLowerCase().contains("đứng");
+                for (int i = 1; i <= toCreate; i++) {
+                    long seatIndex = existingCount + i;
+                    String ticketCode = String.format("TICK-%s-%04d",
+                            zone.getId().toString().substring(0, 8).toUpperCase(),
+                            seatIndex);
+                    String seatNumber = isStanding ? null : (zone.getName().replaceAll("\\s+", "-").toUpperCase() + "-" + seatIndex);
+                    newTickets.add(Ticket.builder()
+                            .zone(zone)
+                            .ticketCode(ticketCode)
+                            .seatNumber(seatNumber)
+                            .price(zone.getPrice())
+                            .status(TicketStatus.AVAILABLE)
+                            .isCheckedIn(false)
+                            .build());
+                }
+                ticketRepository.saveAll(newTickets);
+            }
+        }
     }
 }

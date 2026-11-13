@@ -5,6 +5,7 @@ import com.example.demo.entity.enums.OrderStatus;
 import com.example.demo.entity.enums.TicketStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
@@ -83,4 +84,23 @@ public interface TicketRepository extends JpaRepository<Ticket, UUID> {
 
     // Lấy vé theo order (dùng để build OrderResponse)
     List<Ticket> findByZoneIdAndStatus(UUID zoneId, TicketStatus status);
+
+    // Kiểm tra & dọn dẹp vé khi xóa Zone hoặc Sự kiện
+    boolean existsByZoneEventIdAndOrderIsNotNull(UUID eventId);
+
+    boolean existsByZoneEventIdAndStatusNot(UUID eventId, TicketStatus status);
+
+    boolean existsByZoneIdAndOrderIsNotNull(UUID zoneId);
+
+    boolean existsByZoneIdAndStatusNot(UUID zoneId, TicketStatus status);
+
+    long countByZoneId(UUID zoneId);
+
+    @Modifying
+    @Query("DELETE FROM Ticket t WHERE t.zone.event.id = :eventId")
+    void deleteByZoneEventId(UUID eventId);
+
+    @Modifying
+    @Query("DELETE FROM Ticket t WHERE t.zone.id = :zoneId")
+    void deleteByZoneId(UUID zoneId);
 }

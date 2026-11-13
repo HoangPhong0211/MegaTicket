@@ -1,0 +1,6 @@
+# Local environment & secret files (never commit)
+.env
+.env.*
+!.env.example
+application-local.properties
+application-local.yml

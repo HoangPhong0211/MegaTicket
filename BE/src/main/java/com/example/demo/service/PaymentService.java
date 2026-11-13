@@ -191,6 +191,17 @@ public class PaymentService {
             return;
         }
 
+        // Kiểm tra thời hạn thanh toán (order.expiresAt)
+        if (order.getExpiresAt() != null && order.getExpiresAt().isBefore(OffsetDateTime.now())) {
+            log.warn("Đơn hàng {} đã quá hạn thanh toán ({}), hủy đơn và đánh dấu payment FAILED.",
+                    order.getId(), order.getExpiresAt());
+            payment.setPaymentResponse(jsonPayload);
+            payment.setStatus(PaymentStatus.FAILED);
+            paymentRepository.save(payment);
+            orderService.releaseOrderResources(order);
+            return;
+        }
+
         // Kiểm tra số tiền chuyển khoản (nếu webhook có gửi kèm)
         if (amountStr != null) {
             try {

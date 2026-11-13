@@ -134,6 +134,91 @@ export const paymentApi = {
     }),
 }
 
+// ===== Chatbot Gemini AI APIs =====
+export const chatApi = {
+  getStatus: () => apiFetch('/api/chat/status', { auth: false }),
+  sendMessage: (payload) =>
+    apiFetch('/api/chat', { method: 'POST', body: payload }),
+
+  /**
+   * Gọi SSE streaming POST /api/chat/stream để hiển thị chữ ngay lập tức.
+   */
+  async streamMessage(payload, { onDelta, onDone, signal } = {}) {
+    const headers = { 'Content-Type': 'application/json', Accept: 'text/event-stream' }
+    const token = getStoredToken()
+    if (token) {
+      headers.Authorization = `Bearer ${token}`
+    }
+
+    const res = await fetch(`${API_BASE}/api/chat/stream`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload),
+      signal,
+    })
+
+    if (!res.ok) {
+      const text = await res.text()
+      let parsed = null
+      try { parsed = text ? JSON.parse(text) : null } catch { parsed = text }
+      throw new Error(parseErrorMessage(parsed, res.status))
+    }
+
+    if (!res.body) {
+      throw new Error('Trình duyệt không hỗ trợ đọc stream.')
+    }
+
+    const reader = res.body.getReader()
+    const decoder = new TextDecoder('utf-8')
+    let buffer = ''
+
+    const processEventBlock = (rawBlock) => {
+      const lines = rawBlock.split(/\r?\n/)
+      let eventName = 'message'
+      const dataLines = []
+      for (const line of lines) {
+        if (line.startsWith('event:')) {
+          eventName = line.slice(6).trim()
+        } else if (line.startsWith('data:')) {
+          dataLines.push(line.slice(5).trim())
+        }
+      }
+      if (dataLines.length === 0) return
+
+      const rawData = dataLines.join('\n')
+      let data = rawData
+      try { data = JSON.parse(rawData) } catch { /* plain text */ }
+
+      if (eventName === 'delta' && data?.text) {
+        onDelta?.(data.text)
+      } else if (eventName === 'done') {
+        onDone?.(data)
+      } else if (eventName === 'error') {
+        throw new Error(data?.message || 'Trợ lý AI gặp lỗi khi phản hồi.')
+      }
+    }
+
+    while (true) {
+      const { value, done } = await reader.read()
+      if (done) break
+
+      buffer += decoder.decode(value, { stream: true })
+      const blocks = buffer.split(/\r?\n\r?\n/)
+      buffer = blocks.pop() || ''
+
+      for (const block of blocks) {
+        if (block.trim()) {
+          processEventBlock(block)
+        }
+      }
+    }
+
+    if (buffer.trim()) {
+      processEventBlock(buffer)
+    }
+  },
+}
+
 // ===== Admin APIs (ROLE_ADMIN) =====
 export const adminApi = {
   // Sự kiện & Zone

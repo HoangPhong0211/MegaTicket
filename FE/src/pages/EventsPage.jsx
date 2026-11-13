@@ -34,21 +34,26 @@ export default function EventsPage() {
     }
   }, [searchParams])
 
-  const loadEvents = useCallback(async () => {
-    setLoading(true)
+  const loadEvents = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true)
     setError('')
     try {
       const data = await eventApi.getAll()
       setEvents(Array.isArray(data) ? data : [])
     } catch (err) {
-      setError(err.message || 'Không thể tải danh sách sự kiện từ máy chủ.')
+      if (!silent) {
+        setError(err.message || 'Không thể tải danh sách sự kiện từ máy chủ.')
+      }
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
   }, [])
 
   useEffect(() => {
     loadEvents()
+    // Đồng bộ định kỳ mỗi 60s khớp với Cronjob trạng thái sự kiện trên BE
+    const timer = setInterval(() => loadEvents(true), 60_000)
+    return () => clearInterval(timer)
   }, [loadEvents])
 
   function getMinPrice(ev) {

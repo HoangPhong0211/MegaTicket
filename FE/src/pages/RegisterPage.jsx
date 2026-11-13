@@ -10,6 +10,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import InfoModal from '../components/InfoModal'
 
 export default function RegisterPage() {
   const navigate = useNavigate()
@@ -28,6 +29,7 @@ export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
   const [success, setSuccess] = useState(false)
+  const [modalType, setModalType] = useState(null)
 
   function handleChange(e) {
     const { name, value } = e.target
@@ -325,9 +327,37 @@ export default function RegisterPage() {
           {/* Terms */}
           <p style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.6, marginTop: 4 }}>
             Bằng cách đăng ký, bạn đồng ý với{' '}
-            <a href="#" style={{ color: 'var(--primary)' }}>Điều khoản sử dụng</a>{' '}
+            <button
+              type="button"
+              onClick={() => setModalType('terms')}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'var(--primary)',
+                padding: 0,
+                cursor: 'pointer',
+                fontSize: '12px',
+                textDecoration: 'underline'
+              }}
+            >
+              Điều khoản sử dụng
+            </button>{' '}
             và{' '}
-            <a href="#" style={{ color: 'var(--primary)' }}>Chính sách bảo mật</a>{' '}
+            <button
+              type="button"
+              onClick={() => setModalType('privacy')}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'var(--primary)',
+                padding: 0,
+                cursor: 'pointer',
+                fontSize: '12px',
+                textDecoration: 'underline'
+              }}
+            >
+              Chính sách bảo mật
+            </button>{' '}
             của MegaTicket.
           </p>
 
@@ -365,6 +395,44 @@ export default function RegisterPage() {
           <Link to="/login">Đăng nhập ngay</Link>
         </p>
       </div>
+
+      <InfoModal
+        isOpen={modalType === 'terms'}
+        onClose={() => setModalType(null)}
+        title="Điều khoản sử dụng MegaTicket"
+      >
+        <h4 style={{ color: 'var(--text)', marginBottom: 8, fontSize: '15px' }}>1. Chấp thuận điều khoản</h4>
+        <p style={{ marginBottom: 12 }}>
+          Khi đăng ký tài khoản và sử dụng nền tảng MegaTicket, bạn cam kết tuân thủ các quy định về mua vé, thanh toán, bảo mật vé điện tử và quyền lợi của người tham gia sự kiện.
+        </p>
+        <h4 style={{ color: 'var(--text)', marginBottom: 8, fontSize: '15px' }}>2. Quy định vé điện tử & QR Code</h4>
+        <p style={{ marginBottom: 12 }}>
+          Mỗi mã vé QR chỉ có giá trị check-in một lần duy nhất tại cổng sự kiện. Người dùng có trách nhiệm bảo mật mã QR, không chụp màn hình chia sẻ công khai nhằm tránh bị chiếm đoạt lượt quét vé.
+        </p>
+        <h4 style={{ color: 'var(--text)', marginBottom: 8, fontSize: '15px' }}>3. Chính sách hoàn tiền & Hủy đơn</h4>
+        <p>
+          Đơn hàng giữ chỗ có hiệu lực thanh toán trong vòng 10 phút. Sau thời hạn trên, hệ thống sẽ tự động hủy đơn và giải phóng ghế để phục vụ khán giả khác. Vé đã thanh toán tuân theo chính sách riêng của từng ban tổ chức sự kiện.
+        </p>
+      </InfoModal>
+
+      <InfoModal
+        isOpen={modalType === 'privacy'}
+        onClose={() => setModalType(null)}
+        title="Chính sách bảo mật thông tin"
+      >
+        <h4 style={{ color: 'var(--text)', marginBottom: 8, fontSize: '15px' }}>1. Thu thập thông tin</h4>
+        <p style={{ marginBottom: 12 }}>
+          MegaTicket chỉ thu thập các thông tin thiết yếu bao gồm họ tên, email, số điện thoại phục vụ việc xuất vé điện tử, thông báo sự kiện và hỗ trợ khách hàng.
+        </p>
+        <h4 style={{ color: 'var(--text)', marginBottom: 8, fontSize: '15px' }}>2. Bảo mật dữ liệu & Mật khẩu</h4>
+        <p style={{ marginBottom: 12 }}>
+          Toàn bộ mật khẩu của khách hàng được mã hóa một chiều bằng thuật toán BCrypt chuẩn quốc tế. Thông tin giao dịch thanh toán qua VietQR/Ngân hàng được truyền tải qua giao thức mã hóa SSL/TLS.
+        </p>
+        <h4 style={{ color: 'var(--text)', marginBottom: 8, fontSize: '15px' }}>3. Cam kết không chia sẻ bên thứ ba</h4>
+        <p>
+          Chúng tôi cam kết không kinh doanh, bán hoặc cung cấp thông tin cá nhân của bạn cho bất kỳ đơn vị quảng cáo trung gian nào khi chưa có sự đồng thuận từ bạn.
+        </p>
+      </InfoModal>
     </div>
   )
 }

@@ -2,6 +2,7 @@ package com.example.demo.exception;
 
 import com.example.demo.dto.response.ErrorResponse;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
@@ -51,6 +52,25 @@ public class GlobalExceptionHandler {
             errors.put(fieldError.getField(), fieldError.getDefaultMessage());
         }
         return ResponseEntity.badRequest().body(errors);
+    }
+
+    /**
+     * Bắt lỗi ràng buộc toàn vẹn dữ liệu (Foreign key constraint, Unique constraint...).
+     * HTTP 400 Bad Request thay vì 500.
+     */
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ErrorResponse> handleDataIntegrityViolationException(DataIntegrityViolationException ex) {
+        log.warn("Lỗi ràng buộc dữ liệu: {}", ex.getMessage());
+        return ResponseEntity.badRequest().body(new ErrorResponse("Thao tác không hợp lệ do ràng buộc dữ liệu hoặc đang được tham chiếu bởi các bản ghi khác."));
+    }
+
+    /**
+     * Bắt lỗi tham số không hợp lệ (IllegalArgumentException).
+     * HTTP 400 Bad Request.
+     */
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<ErrorResponse> handleIllegalArgumentException(IllegalArgumentException ex) {
+        return ResponseEntity.badRequest().body(new ErrorResponse(ex.getMessage()));
     }
 
     /**
