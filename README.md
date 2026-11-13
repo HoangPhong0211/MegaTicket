@@ -155,9 +155,10 @@ docker-compose up -d
    *(Nếu không điền API Key, các tính năng bán vé, đặt chỗ, thanh toán vẫn hoạt động bình thường, Chatbot sẽ hiển thị phản hồi mẫu hướng dẫn).*
 
 3. Khởi chạy Backend bằng Maven Wrapper:
-   - **Trên Windows:**
+   - **Trên Windows (PowerShell / CMD):**
      ```powershell
-     .\mvnw.cmd spring-boot:run
+     .\mvnw spring-boot:run
+     # hoặc: .\mvnw.cmd spring-boot:run
      ```
    - **Trên Linux/macOS:**
      ```bash
@@ -212,7 +213,8 @@ Dự án được trang bị bộ kiểm thử tự động toàn diện:
 Chạy toàn bộ 20 bài kiểm thử tích hợp Mockito (kiểm tra tạo đơn, hủy đơn, khóa tài nguyên, check-in, webhook):
 ```bash
 cd BE
-.\mvnw.cmd test
+.\mvnw test
+# hoặc: .\mvnw.cmd test
 ```
 *Kết quả: **20/20 test cases Passed (0 Failures, 0 Errors)**.*
 
